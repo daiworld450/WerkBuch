@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function angemeldet() { return request.auth != null; }
+    function meineUid()   { return request.auth.uid; }
+
+    // Zugriff auf das Baustellen-Hauptdokument
+    function istHandwerkerVon(bid) {
+      return get(/databases/$(database)/documents/baustellen/$(bid)).data.handwerkerId == meineUid();
+    }
+    function istKundeVon(bid) {
+      return get(/databases/$(database)/documents/baustellen/$(bid)).data.kundeId == meineUid();
+    }
+
+    // -------------------------------------------------------------- users
+    match /users/{uid} {
+      // Angemeldete dürfen Profile lesen (nötig, um Kunden per E-Mail zu finden)
+      allow read: if angemeldet();
+      allow create: if angemeldet() && uid == meineUid();
+      allow update, delete: if angemeldet() && uid == meineUid();
+    }
+
+    // --------------------------------------------------------- baustellen
+    match /baustellen/{bid} {
+      allow read: if angemeldet() &&
+        (resource.data.handwerkerId == meineUid() || resource.data.kundeId == meineUid());
+      allow create: if angemeldet() && request.resource.data.handwerkerId == meineUid();
+      allow update, delete: if angemeldet() && resource.data.handwerkerId == meineUid();
+
+      // Sonderregel Angebot: der Kunde darf im Dokument angebot/aktuell
+      // ausschließlich das Feld "status" (plus aktualisiertAm) auf
+      // "Angenommen" oder "Abgelehnt" setzen.
+      match /angebot/{docId} {
+        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow create, delete: if angemeldet() && istHandwerkerVon(bid);
+        allow update: if angemeldet() && (
+          // Handwerker: darf alles ändern
+          istHandwerkerVon(bid) ||
+          // Kunde: nur status (+ aktualisiertAm) und nur erlaubte Werte
+          (
+            istKundeVon(bid) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'aktualisiertAm']) &&
+            request.resource.data.status in ['Angenommen', 'Abgelehnt']
+          )
+        );
+      }
+
+      // Alle übrigen Unterordner (fotos, masse, material, termine, raum):
+      // lesen für Handwerker + Kunde, schreiben nur Handwerker.
+      match /{unterordner}/{docId} {
+        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow write: if angemeldet() && istHandwerkerVon(bid);
+      }
+    }
+  }
+}

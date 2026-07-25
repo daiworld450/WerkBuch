@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Storage-Regeln: Dateien liegen unter baustellen/{bid}/...
+// Lesen und Schreiben nur für angemeldete Nutzer, die der jeweiligen
+// Baustelle zugeordnet sind (Handwerker liest+schreibt, Kunde liest nur).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function angemeldet() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+
+    // Zugriff wird über das Firestore-Baustellendokument geprüft.
+    function baustelle(bid) {
+      return firestore.get(/databases/(default)/documents/baustellen/$(bid)).data;
+    }
+    function istHandwerker(bid) {
+      return angemeldet() && baustelle(bid).handwerkerId == uid();
+    }
+    function istBeteiligt(bid) {
+      return angemeldet() &&
+        (baustelle(bid).handwerkerId == uid() || baustelle(bid).kundeId == uid());
+    }
+
+    match /baustellen/{bid}/{alleWeiteren=**} {
+      // Kunde und Handwerker dürfen lesen
+      allow read: if istBeteiligt(bid);
+      // Nur der Handwerker darf hochladen/löschen
+      allow write: if istHandwerker(bid);
+    }
+  }
+}

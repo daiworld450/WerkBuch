@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "WerkBuch",
+    "slug": "werkbuch",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "berisabau",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0b0b0f",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b0b0f"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "de.berisabau.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "WerkBuch benötigt Zugriff auf Ihre Fotos, um Baustellen-Bilder hochzuladen.",
+        "NSCameraUsageDescription": "WerkBuch benötigt Zugriff auf die Kamera, um Baustellen-Fotos aufzunehmen."
+      }
+    },
+    "android": {
+      "package": "de.berisabau.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0b0b0f"
+      },
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "WerkBuch benötigt Zugriff auf Ihre Fotos, um Baustellen-Bilder hochzuladen.",
+          "cameraPermission": "WerkBuch benötigt Zugriff auf die Kamera, um Baustellen-Fotos aufzunehmen."
+        }
+      ],
+      "expo-screen-capture"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6627b2b4-6100-4127-b831-60862fc5ffec"
+      }
+    }
+  }
+}
