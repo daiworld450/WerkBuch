@@ -38,8 +38,7 @@
           "photosPermission": "WerkBuch benötigt Zugriff auf Ihre Fotos, um Baustellen-Bilder hochzuladen.",
           "cameraPermission": "WerkBuch benötigt Zugriff auf die Kamera, um Baustellen-Fotos aufzunehmen."
         }
-      ],
-      "expo-screen-capture"
+      ]
     ],
     "extra": {
       "eas": {
