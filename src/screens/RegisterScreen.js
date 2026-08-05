@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: farben.bg },
   scroll: { padding: 24, paddingBottom: 48 },
   titel: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: groessen.h2,
     color: farben.text,
     letterSpacing: 0.5,
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   },
   unter: { marginBottom: 22 },
   label: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: groessen.klein,
     color: farben.textWeich,
     letterSpacing: 0.5,
@@ -153,14 +153,14 @@ const styles = StyleSheet.create({
   rolle: { flex: 1, alignItems: "center", paddingVertical: 22 },
   rolleSymbol: { fontSize: 32, marginBottom: 10 },
   rolleTitel: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: 18,
     color: farben.text,
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   rolleText: {
-    fontFamily: schrift.body,
+    ...schrift.body,
     fontSize: 12.5,
     color: farben.textMatt,
     textAlign: "center",

@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   text: {
-    fontFamily: schrift.body,
+    ...schrift.body,
     fontSize: 14,
     color: farben.fehlerText,
     lineHeight: 20,

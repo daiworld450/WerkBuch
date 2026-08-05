@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   wrap: { alignItems: "center", justifyContent: "center", paddingVertical: 48, paddingHorizontal: 20 },
   symbol: { fontSize: 44, marginBottom: 14 },
   titel: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: 20,
     color: farben.text,
     letterSpacing: 0.5,

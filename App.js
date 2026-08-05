@@ -4,7 +4,7 @@
 
 import "react-native-gesture-handler";
 import React, { useCallback } from "react";
-import { View } from "react-native";
+import { View, Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
@@ -35,7 +35,9 @@ export default function App() {
     }
   }, [schriftenBereit]);
 
-  if (!schriftenBereit) return null;
+  // Im Web nicht auf die Schriften warten — sie werden dort nachgeladen,
+  // sonst bliebe die Seite bei einem Lade-Hänger dauerhaft leer.
+  if (!schriftenBereit && Platform.OS !== "web") return null;
 
   return (
     <SafeAreaProvider>

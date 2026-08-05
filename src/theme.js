@@ -30,12 +30,14 @@ export const farben = {
   gruenRing: "rgba(56,209,122,.2)",
 };
 
-// Schrift-Familien (werden in App.js über expo-font geladen)
+// Schrift: der kräftige, breite Rajdhani/Rubik-Look der Landingpage
+// (werden in App.js über expo-font geladen). Jeweils { fontFamily } —
+// per Spread (...schrift.head) einsetzen.
 export const schrift = {
-  head: "Rajdhani_700Bold",
-  headHalb: "Rajdhani_600SemiBold",
-  body: "Rubik_400Regular",
-  bodyMed: "Rubik_500Medium",
+  head: { fontFamily: "Rajdhani_700Bold" },
+  headHalb: { fontFamily: "Rajdhani_600SemiBold" },
+  body: { fontFamily: "Rubik_400Regular" },
+  bodyMed: { fontFamily: "Rubik_500Medium" },
 };
 
 export const groessen = {
@@ -56,31 +58,31 @@ export const radius = {
 // Wiederverwendbare Text-Stile
 export const textStil = {
   h1: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: groessen.h1,
     color: farben.text,
     letterSpacing: 0.5,
   },
   h2: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: groessen.h2,
     color: farben.text,
     letterSpacing: 0.5,
   },
   h3: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: groessen.h3,
     color: farben.text,
     letterSpacing: 0.5,
   },
   body: {
-    fontFamily: schrift.body,
+    ...schrift.body,
     fontSize: groessen.text,
     color: farben.textWeich,
     lineHeight: groessen.text * 1.55,
   },
   klein: {
-    fontFamily: schrift.body,
+    ...schrift.body,
     fontSize: groessen.klein,
     color: farben.textMatt,
     lineHeight: groessen.klein * 1.55,

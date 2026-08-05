@@ -13,8 +13,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  Alert,
 } from "react-native";
+import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   collection,
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: farben.bg },
   scroll: { padding: 20, paddingBottom: 48 },
   katH: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: groessen.h3,
     color: farben.text,
     letterSpacing: 0.5,
@@ -309,17 +309,17 @@ const styles = StyleSheet.create({
   },
   mKarte: { marginBottom: 10 },
   mKopf: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  mBez: { fontFamily: schrift.head, fontSize: 17, color: farben.text, letterSpacing: 0.5, flex: 1 },
-  mLoeschen: { fontFamily: schrift.head, fontSize: 18, color: farben.rotHell, paddingLeft: 10 },
-  mZeile: { fontFamily: schrift.body, fontSize: 14, color: farben.textWeich, marginTop: 4 },
-  mSumme: { fontFamily: schrift.headHalb, fontSize: 14, color: farben.gruen, marginTop: 6, letterSpacing: 0.5 },
-  mBemerkung: { fontFamily: schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 6, fontStyle: "italic" },
+  mBez: { ...schrift.head, fontSize: 17, color: farben.text, letterSpacing: 0.5, flex: 1 },
+  mLoeschen: { ...schrift.head, fontSize: 18, color: farben.rotHell, paddingLeft: 10 },
+  mZeile: { ...schrift.body, fontSize: 14, color: farben.textWeich, marginTop: 4 },
+  mSumme: { ...schrift.headHalb, fontSize: 14, color: farben.gruen, marginTop: 6, letterSpacing: 0.5 },
+  mBemerkung: { ...schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 6, fontStyle: "italic" },
   gesamtKarte: { marginBottom: 18, alignItems: "center", paddingVertical: 20 },
-  gesamtLabel: { fontFamily: schrift.body, fontSize: 13, color: farben.textMatt, marginBottom: 6 },
-  gesamtWert: { fontFamily: schrift.head, fontSize: 30, color: farben.text, letterSpacing: 0.5 },
-  formTitel: { fontFamily: schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5, marginBottom: 14 },
+  gesamtLabel: { ...schrift.body, fontSize: 13, color: farben.textMatt, marginBottom: 6 },
+  gesamtWert: { ...schrift.head, fontSize: 30, color: farben.text, letterSpacing: 0.5 },
+  formTitel: { ...schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5, marginBottom: 14 },
   kleinLabel: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: groessen.klein,
     color: farben.textWeich,
     letterSpacing: 0.5,

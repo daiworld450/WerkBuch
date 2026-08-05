@@ -34,7 +34,7 @@ export default function Feld({
 const styles = StyleSheet.create({
   gruppe: { marginBottom: 16 },
   label: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: groessen.klein,
     color: farben.textWeich,
     letterSpacing: 0.5,
@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 16,
     color: farben.text,
-    fontFamily: schrift.body,
+    ...schrift.body,
     fontSize: groessen.text,
   },
   feldFokus: { borderColor: farben.feldFokus },

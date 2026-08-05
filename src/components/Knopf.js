@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   },
   inhalt: { flexDirection: "row", alignItems: "center" },
   text: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: 18,
     color: farben.text,
     letterSpacing: 0.5,

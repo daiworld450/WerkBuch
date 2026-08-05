@@ -9,8 +9,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
 } from "react-native";
+import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   doc,
@@ -214,17 +214,17 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: farben.bg },
   scroll: { padding: 20, paddingBottom: 40 },
   name: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: groessen.h1,
     color: farben.text,
     letterSpacing: 0.5,
   },
-  adresse: { fontFamily: schrift.body, fontSize: 15, color: farben.textMatt, marginTop: 4 },
-  kunde: { fontFamily: schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 2 },
+  adresse: { ...schrift.body, fontSize: 15, color: farben.textMatt, marginTop: 4 },
+  kunde: { ...schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 2 },
   statusReihe: { marginTop: 14 },
   fortReihe: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14, marginBottom: 22 },
   prozent: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: 16,
     color: farben.text,
     letterSpacing: 0.5,
@@ -233,12 +233,12 @@ const styles = StyleSheet.create({
   },
   einstieg: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 12 },
   eSymbol: { fontSize: 26 },
-  eTitel: { fontFamily: schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5 },
-  eText: { fontFamily: schrift.body, fontSize: 13.5, color: farben.textMatt, marginTop: 2 },
-  ePfeil: { fontFamily: schrift.head, fontSize: 26, color: farben.textMatt },
+  eTitel: { ...schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5 },
+  eText: { ...schrift.body, fontSize: 13.5, color: farben.textMatt, marginTop: 2 },
+  ePfeil: { ...schrift.head, fontSize: 26, color: farben.textMatt },
   hwBereich: { marginTop: 18 },
   label: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: groessen.klein,
     color: farben.textWeich,
     letterSpacing: 0.5,

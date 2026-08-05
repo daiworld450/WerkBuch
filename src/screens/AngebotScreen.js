@@ -12,19 +12,19 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
-  Dimensions,
   ActivityIndicator,
+  Image,
+  useWindowDimensions,
 } from "react-native";
+import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ScreenCapture from "expo-screen-capture";
-import Pdf from "react-native-pdf";
 import { doc, onSnapshot, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 import { db } from "../firebase";
-import { ladeDateiHoch } from "../cloudinary";
+import { ladeDateiHoch, pdfSeitenBild } from "../cloudinary";
 import { useAuth } from "../context/AuthContext";
 import { farben, schrift, groessen } from "../theme";
 import Karte from "../components/Karte";
@@ -36,7 +36,11 @@ import Ladeanzeige from "../components/Ladeanzeige";
 import { datumDe, euroDe } from "../util/format";
 import fehlerText from "../util/fehler";
 
-const STATUS = ["Entwurf", "Gesendet", "Angenommen", "Abgelehnt"];
+// Der Handwerker steuert nur Entwurf/Gesendet direkt. "Angenommen" und
+// "Abgelehnt" sind die Entscheidung des Kunden — die zeigt der Handwerker
+// nur als Abzeichen an, statt sie versehentlich manuell setzen zu können.
+const HANDWERKER_STATUS = ["Entwurf", "Gesendet"];
+const KUNDEN_STATUS = ["Angenommen", "Abgelehnt"];
 
 // Wasserzeichen-Gitter: halbtransparent, diagonal, nicht anklickbar.
 function Wasserzeichen({ text }) {
@@ -57,9 +61,62 @@ function Wasserzeichen({ text }) {
   );
 }
 
+// Eine einzelne PDF-Seite als Bild — ermittelt ihr echtes Seitenverhältnis
+// (Hoch- oder Querformat, nicht jedes PDF ist A4) und passt die Höhe exakt
+// an, damit die Seite vollständig und unverzerrt zu sehen ist.
+function PdfSeite({ url, breite }) {
+  // A4-Hochformat als Startwert, bis die echte Größe bekannt ist —
+  // vermeidet ein Springen von Nullhöhe auf die richtige Höhe.
+  const [verhaeltnis, setVerhaeltnis] = useState(1.414);
+
+  useEffect(() => {
+    let aktiv = true;
+    Image.getSize(
+      url,
+      (w, h) => {
+        if (aktiv && w > 0) setVerhaeltnis(h / w);
+      },
+      () => {} // bei Fehler beim A4-Startwert bleiben
+    );
+    return () => {
+      aktiv = false;
+    };
+  }, [url]);
+
+  return (
+    <Image
+      source={{ uri: url }}
+      style={{
+        width: breite,
+        height: breite * verhaeltnis,
+        backgroundColor: "#fff",
+        marginBottom: 10,
+        borderRadius: 8,
+      }}
+      resizeMode="contain"
+    />
+  );
+}
+
+// Zeigt alle PDF-Seiten als Bilder — funktioniert auf iPhone, Android und im
+// Web identisch; ganz ohne PDF-Betrachter oder Download-Knopf.
+function PdfSeiten({ pdfUrl, seiten = 1, breite }) {
+  const urls = Array.from({ length: Math.max(1, seiten) }, (_, i) =>
+    pdfSeitenBild(pdfUrl, i + 1)
+  );
+  return (
+    <>
+      {urls.map((u, i) => (
+        <PdfSeite key={u} url={u} breite={breite} />
+      ))}
+    </>
+  );
+}
+
 export default function AngebotScreen({ route }) {
   const { baustelleId } = route.params;
   const { profil, istHandwerker } = useAuth();
+  const { width: fensterBreite } = useWindowDimensions();
 
   const [angebot, setAngebot] = useState(null);
   const [laedt, setLaedt] = useState(true);
@@ -97,27 +154,39 @@ export default function AngebotScreen({ route }) {
   async function pdfWaehlen() {
     try {
       const res = await DocumentPicker.getDocumentAsync({
-        type: "application/pdf",
+        type: ["application/pdf"],
+        multiple: false,
         copyToCacheDirectory: true,
       });
       if (res.canceled || !res.assets?.length) return;
-      await pdfHochladen(res.assets[0]);
+      const datei = res.assets[0];
+
+      // Cloudinary (Gratis-Tarif) erlaubt max. 10 MB pro Datei
+      if (datei.size && datei.size > 9.5 * 1024 * 1024) {
+        Alert.alert(
+          "PDF zu groß",
+          `Die Datei ist ${(datei.size / 1024 / 1024).toFixed(1)} MB groß. Maximal möglich sind 10 MB. Bitte verkleinern Sie das PDF (z. B. beim Export „reduzierte Größe“ wählen).`
+        );
+        return;
+      }
+      await pdfHochladen(datei);
     } catch (e) {
-      Alert.alert("Fehler", fehlerText(e));
+      Alert.alert("Fehler", e?.message || fehlerText(e));
     }
   }
 
   async function pdfHochladen(datei) {
     setHochladen(true);
     try {
-      const { url, publicId } = await ladeDateiHoch(datei.uri, {
-        typ: "raw",
+      const { url, publicId, seiten } = await ladeDateiHoch(datei.uri, {
+        typ: "pdf",
         dateiname: datei.name,
       });
 
       await setDoc(doc(db, "baustellen", baustelleId, "angebot", "aktuell"), {
         pdfUrl: url,
         pdfPfad: publicId,
+        seiten: seiten || 1,
         dateiname: datei.name,
         betrag: betrag.trim() ? Number(betrag.replace(",", ".")) : null,
         status: "Gesendet", // automatisch beim Hochladen
@@ -125,7 +194,11 @@ export default function AngebotScreen({ route }) {
         aktualisiertAm: serverTimestamp(),
       });
     } catch (e) {
-      Alert.alert("Upload fehlgeschlagen", fehlerText(e));
+      // Upload-Fehler mit konkreter Ursache anzeigen (hilft bei der Diagnose)
+      const text = e?.message?.startsWith("Upload fehlgeschlagen")
+        ? e.message
+        : fehlerText(e);
+      Alert.alert("Upload fehlgeschlagen", text);
     } finally {
       setHochladen(false);
     }
@@ -152,6 +225,17 @@ export default function AngebotScreen({ route }) {
     } catch (e) {
       Alert.alert("Fehler", fehlerText(e));
     }
+  }
+
+  function zuruecksetzenFragen() {
+    Alert.alert(
+      "Auf „Gesendet“ zurücksetzen?",
+      "Die Entscheidung des Kunden wird gelöscht — z. B. wenn der Kunde telefonisch eine Änderung mitgeteilt hat.",
+      [
+        { text: "Abbrechen", style: "cancel" },
+        { text: "Zurücksetzen", style: "destructive", onPress: () => statusSetzen("Gesendet") },
+      ]
+    );
   }
 
   function kundeEntscheidung(neu) {
@@ -185,18 +269,18 @@ export default function AngebotScreen({ route }) {
     return (
       <View style={styles.safe}>
         <View style={styles.kInfo}>
-          <Pill text={angebot.status} aktiv={angebot.status === "Angenommen"} />
+          <Pill text={angebot.status} aktiv={angebot.status === "Angenommen" || angebot.status === "Abgelehnt"} />
           <Text style={styles.kDatei} numberOfLines={1}>{angebot.dateiname}</Text>
         </View>
 
         <View style={styles.pdfWrap}>
-          <Pdf
-            source={{ uri: angebot.pdfUrl, cache: true }}
-            trustAllCerts={false}
-            style={styles.pdf}
-            renderActivityIndicator={() => <ActivityIndicator color={farben.rot} size="large" />}
-            onError={() => {}}
-          />
+          <ScrollView contentContainerStyle={styles.pdfScrollKunde}>
+            <PdfSeiten
+              pdfUrl={angebot.pdfUrl}
+              seiten={angebot.seiten || 1}
+              breite={fensterBreite - 24}
+            />
+          </ScrollView>
           <Wasserzeichen text={wzText} />
         </View>
 
@@ -235,7 +319,7 @@ export default function AngebotScreen({ route }) {
             <Karte style={{ marginTop: 18 }}>
               <View style={styles.hKopf}>
                 <Text style={styles.hDatei} numberOfLines={1}>{angebot.dateiname}</Text>
-                <Pill text={angebot.status} aktiv={angebot.status === "Angenommen"} />
+                <Pill text={angebot.status} aktiv={angebot.status === "Angenommen" || angebot.status === "Abgelehnt"} />
               </View>
               <Text style={styles.hDatum}>
                 Aktualisiert: {datumDe(angebot.aktualisiertAm)}
@@ -254,20 +338,46 @@ export default function AngebotScreen({ route }) {
             </View>
 
             <Text style={styles.label}>Status</Text>
-            <View style={styles.chips}>
-              {STATUS.map((s) => (
-                <Pill key={s} text={s} aktiv={angebot.status === s} onPress={() => statusSetzen(s)} style={{ marginRight: 8, marginBottom: 8 }} />
-              ))}
-            </View>
+            {KUNDEN_STATUS.includes(angebot.status) ? (
+              // Kunde hat bereits entschieden — nur anzeigen, nicht antippbar.
+              <View style={styles.entscheidungBox}>
+                <View
+                  style={[
+                    styles.entscheidungBadge,
+                    angebot.status === "Angenommen" ? styles.badgeGruen : styles.badgeRot,
+                  ]}
+                >
+                  <Text style={styles.entscheidungText}>
+                    {angebot.status === "Angenommen" ? "✓ Angenommen" : "✕ Abgelehnt"}
+                  </Text>
+                </View>
+                <Text style={styles.entscheidungHinweis}>
+                  Diese Entscheidung hat der Kunde getroffen.
+                </Text>
+                <Knopf
+                  titel="Auf „Gesendet“ zurücksetzen"
+                  variante="ghost"
+                  onPress={zuruecksetzenFragen}
+                  style={{ marginTop: 12 }}
+                />
+              </View>
+            ) : (
+              <View style={styles.chips}>
+                {HANDWERKER_STATUS.map((s) => (
+                  <Pill key={s} text={s} aktiv={angebot.status === s} onPress={() => statusSetzen(s)} style={{ marginRight: 8, marginBottom: 8 }} />
+                ))}
+              </View>
+            )}
 
             <Text style={styles.label}>Vorschau</Text>
             <View style={styles.hPdfWrap}>
-              <Pdf
-                source={{ uri: angebot.pdfUrl, cache: true }}
-                style={styles.hPdf}
-                renderActivityIndicator={() => <ActivityIndicator color={farben.rot} />}
-                onError={() => {}}
-              />
+              <ScrollView contentContainerStyle={styles.pdfScrollHandwerker}>
+                <PdfSeiten
+                  pdfUrl={angebot.pdfUrl}
+                  seiten={angebot.seiten || 1}
+                  breite={fensterBreite - 72}
+                />
+              </ScrollView>
             </View>
           </>
         ) : (
@@ -280,13 +390,11 @@ export default function AngebotScreen({ route }) {
   );
 }
 
-const { width } = Dimensions.get("window");
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: farben.bg },
   scroll: { padding: 20, paddingBottom: 48 },
   uploadReihe: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 14 },
-  uploadText: { fontFamily: schrift.body, fontSize: 14, color: farben.textWeich },
+  uploadText: { ...schrift.body, fontSize: 14, color: farben.textWeich },
 
   // Kunde
   kInfo: {
@@ -298,9 +406,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: farben.linie,
   },
-  kDatei: { flex: 1, fontFamily: schrift.body, fontSize: 14, color: farben.textWeich },
+  kDatei: { flex: 1, ...schrift.body, fontSize: 14, color: farben.textWeich },
   pdfWrap: { flex: 1, backgroundColor: "#000" },
-  pdf: { flex: 1, backgroundColor: "#000" },
+  pdfScrollKunde: { paddingVertical: 16, paddingHorizontal: 12, alignItems: "center" },
   kAktionen: { flexDirection: "row", gap: 12, padding: 16, borderTopWidth: 1, borderTopColor: farben.linie },
   annehmen: { backgroundColor: farben.gruen },
 
@@ -316,17 +424,17 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     opacity: 0.12,
     fontSize: 15,
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     letterSpacing: 1,
   },
 
   // Handwerker
   hKopf: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  hDatei: { flex: 1, fontFamily: schrift.head, fontSize: 17, color: farben.text, letterSpacing: 0.5 },
-  hDatum: { fontFamily: schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 8 },
-  hBetrag: { fontFamily: schrift.head, fontSize: 24, color: farben.text, letterSpacing: 0.5, marginTop: 10 },
+  hDatei: { flex: 1, ...schrift.head, fontSize: 17, color: farben.text, letterSpacing: 0.5 },
+  hDatum: { ...schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 8 },
+  hBetrag: { ...schrift.head, fontSize: 24, color: farben.text, letterSpacing: 0.5, marginTop: 10 },
   label: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: groessen.klein,
     color: farben.textWeich,
     letterSpacing: 0.5,
@@ -337,14 +445,41 @@ const styles = StyleSheet.create({
   betragReihe: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   betragKnopf: { paddingHorizontal: 20, paddingVertical: 14 },
   chips: { flexDirection: "row", flexWrap: "wrap" },
+  entscheidungBox: { alignItems: "flex-start" },
+  entscheidungBadge: {
+    borderRadius: 500,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+  },
+  badgeGruen: {
+    backgroundColor: "rgba(56,209,122,.14)",
+    borderColor: "rgba(56,209,122,.4)",
+  },
+  badgeRot: {
+    backgroundColor: farben.auswahlBg,
+    borderColor: farben.rot,
+  },
+  entscheidungText: {
+    ...schrift.headHalb,
+    fontSize: 15,
+    color: farben.text,
+    letterSpacing: 0.5,
+  },
+  entscheidungHinweis: {
+    ...schrift.body,
+    fontSize: 13,
+    color: farben.textMatt,
+    marginTop: 8,
+  },
   hPdfWrap: {
-    height: 420,
+    maxHeight: 560,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: farben.linie,
     backgroundColor: "#000",
   },
-  hPdf: { flex: 1, width: width - 40, backgroundColor: "#000" },
-  leer: { fontFamily: schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 20 },
+  pdfScrollHandwerker: { paddingVertical: 16, alignItems: "center" },
+  leer: { ...schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 20 },
 });

@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     borderColor: farben.gruenRing,
   },
   text: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: 13,
     color: farben.textWeich,
     letterSpacing: 0.5,

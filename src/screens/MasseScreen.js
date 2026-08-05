@@ -12,8 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  Alert,
 } from "react-native";
+import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   doc,
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: farben.bg },
   scroll: { padding: 20, paddingBottom: 48 },
   h: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: groessen.h3,
     color: farben.text,
     letterSpacing: 0.5,
@@ -276,9 +276,9 @@ const styles = StyleSheet.create({
   halb: { flex: 1 },
   ergGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   ergKarte: { width: "48.5%", marginBottom: 12, paddingVertical: 18 },
-  ergLabel: { fontFamily: schrift.body, fontSize: 13, color: farben.textMatt, marginBottom: 8 },
-  ergWert: { fontFamily: schrift.head, fontSize: 24, color: farben.text, letterSpacing: 0.5 },
-  leer: { fontFamily: schrift.body, fontSize: 14, color: farben.textMatt, marginBottom: 4 },
+  ergLabel: { ...schrift.body, fontSize: 13, color: farben.textMatt, marginBottom: 8 },
+  ergWert: { ...schrift.head, fontSize: 24, color: farben.text, letterSpacing: 0.5 },
+  leer: { ...schrift.body, fontSize: 14, color: farben.textMatt, marginBottom: 4 },
   mReihe: {
     flexDirection: "row",
     alignItems: "center",
@@ -287,11 +287,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: farben.linie,
   },
-  mBez: { fontFamily: schrift.body, fontSize: 15, color: farben.text },
-  mWert: { fontFamily: schrift.head, fontSize: 16, color: farben.textWeich, letterSpacing: 0.5 },
-  mLoeschen: { fontFamily: schrift.head, fontSize: 18, color: farben.rotHell, paddingHorizontal: 4 },
+  mBez: { ...schrift.body, fontSize: 15, color: farben.text },
+  mWert: { ...schrift.head, fontSize: 16, color: farben.textWeich, letterSpacing: 0.5 },
+  mLoeschen: { ...schrift.head, fontSize: 18, color: farben.rotHell, paddingHorizontal: 4 },
   kleinLabel: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: groessen.klein,
     color: farben.textWeich,
     letterSpacing: 0.5,

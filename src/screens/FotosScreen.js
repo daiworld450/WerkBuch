@@ -12,9 +12,10 @@ import {
   ScrollView,
   Image,
   Pressable,
-  Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
+import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
@@ -79,6 +80,12 @@ export default function FotosScreen({ route, navigation }) {
   }
 
   async function fotoWaehlen() {
+    // Im Web direkt den Dateiwähler öffnen (iOS bietet dort selbst
+    // "Fotoübersicht / Foto aufnehmen" an)
+    if (Platform.OS === "web") {
+      quelle("galerie");
+      return;
+    }
     Alert.alert("Foto hinzufügen", "Woher möchten Sie das Foto?", [
       { text: "Kamera", onPress: () => quelle("kamera") },
       { text: "Galerie", onPress: () => quelle("galerie") },
@@ -114,16 +121,17 @@ export default function FotosScreen({ route, navigation }) {
   async function hochladenFoto(uri) {
     setHochladen(true);
     try {
-      // Auf max. 1600 px Breite verkleinern, Qualität 0.7
+      // Auf max. 1600 px Breite verkleinern, Qualität 0.7 (Base64 direkt mitnehmen)
       const bearbeitet = await ImageManipulator.manipulateAsync(
         uri,
         [{ resize: { width: 1600 } }],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
       );
 
       const { url, publicId } = await ladeDateiHoch(bearbeitet.uri, {
         typ: "image",
         dateiname: `${baustelleId}_${phase}_${Date.now()}.jpg`,
+        base64: bearbeitet.base64,
       });
 
       await addDoc(collection(db, "baustellen", baustelleId, "fotos"), {
@@ -138,7 +146,11 @@ export default function FotosScreen({ route, navigation }) {
       setNotiz("");
       await aktualisiereZaehler(baustelleId);
     } catch (e) {
-      Alert.alert("Upload fehlgeschlagen", fehlerText(e));
+      // Upload-Fehler mit konkreter Ursache anzeigen (hilft bei der Diagnose)
+      const text = e?.message?.startsWith("Upload fehlgeschlagen")
+        ? e.message
+        : fehlerText(e);
+      Alert.alert("Upload fehlgeschlagen", text);
     } finally {
       setHochladen(false);
     }
@@ -228,7 +240,7 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 16, paddingBottom: 40 },
   addBox: { marginBottom: 18 },
   uploadReihe: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 14, justifyContent: "center" },
-  uploadText: { fontFamily: schrift.body, fontSize: 14, color: farben.textWeich },
+  uploadText: { ...schrift.body, fontSize: 14, color: farben.textWeich },
   raster: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   zelle: { width: "48.5%", marginBottom: 14 },
   bild: {
@@ -239,5 +251,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: farben.linie,
   },
-  notiz: { fontFamily: schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 6 },
+  notiz: { ...schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 6 },
 });

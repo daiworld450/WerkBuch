@@ -4,51 +4,78 @@
 // "unsigned upload preset". Es wird KEIN geheimer Schlüssel in der App
 // gespeichert – nur Cloud-Name und Preset-Name, die beide unkritisch sind.
 //
-// >>> HIER IHRE CLOUDINARY-DATEN EINTRAGEN <<<
+// Upload-Technik: Die Datei wird als Base64-Daten-URI im Formularkörper
+// gesendet (application/x-www-form-urlencoded). Das ist unter React Native /
+// Expo Go deutlich zuverlässiger als FormData-Datei-Anhänge.
 //
-// So bekommen Sie die Werte (kostenlos, keine Kreditkarte):
-//   1. Konto anlegen auf https://cloudinary.com  ("Sign up for free").
-//   2. Im Dashboard steht oben Ihr "Cloud name" – diesen unten eintragen.
-//   3. Zahnrad (Settings) -> Reiter "Upload" -> nach unten zu
-//      "Upload presets" -> "Add upload preset".
-//      - "Signing Mode" auf  Unsigned  stellen.
-//      - Den vergebenen Preset-Namen (z. B. "berisa_unsigned") unten eintragen.
-//      - Speichern.
-//   4. WICHTIG für PDFs: Settings -> "Security" -> Häkchen bei
-//      "Allow delivery of PDF and ZIP files" setzen (sonst wird das
-//      Angebots-PDF beim Anzeigen blockiert).
+// Einrichtung (kostenlos, keine Kreditkarte): Konto auf https://cloudinary.com,
+// Cloud name aus dem Dashboard, unsigniertes Upload-Preset unter
+// Settings -> Upload -> Upload presets, und unter Settings -> Security den
+// Haken bei "Allow delivery of PDF and ZIP files".
 // ---------------------------------------------------------------------------
 
-// ▼▼▼ PLATZHALTER – durch Ihre echten Werte ersetzen ▼▼▼
 export const CLOUDINARY = {
   cloudName: "iqigqezt",
   uploadPreset: "WerkBauBuch",
 };
-// ▲▲▲ PLATZHALTER ENDE ▲▲▲
+
+// Liest eine lokale Datei als Base64-Daten-URI (über den eingebauten FileReader).
+async function alsDataUri(uri, mime) {
+  const res = await fetch(uri);
+  const blob = await res.blob();
+  const roh = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Datei konnte nicht gelesen werden."));
+    reader.readAsDataURL(blob);
+  });
+  // Mime-Typ ggf. auf den gewünschten Wert setzen (FileReader liefert oft octet-stream)
+  return roh.replace(/^data:[^;]*;/, `data:${mime};`);
+}
 
 // Lädt eine lokale Datei (uri) zu Cloudinary hoch.
-//   typ: "image" für Fotos, "raw" für PDFs.
-// Gibt { url, publicId } zurück. url ist die dauerhafte HTTPS-Adresse.
-export async function ladeDateiHoch(uri, { typ = "image", dateiname } = {}) {
-  const resource = typ === "raw" ? "raw" : "image";
-  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/${resource}/upload`;
+//   typ: "image" für Fotos, "pdf" für Angebots-PDFs.
+//   base64 (optional): bereits vorhandene Base64-Daten (spart erneutes Lesen).
+// Gibt { url, publicId, seiten } zurück. url ist die dauerhafte HTTPS-Adresse.
+// PDFs werden bewusst als "image" hochgeladen: Cloudinary kann dann jede
+// Seite als Bild ausliefern (pg_1, pg_2, …) — das nutzt die Angebots-Anzeige.
+export async function ladeDateiHoch(uri, { typ = "image", dateiname, base64 } = {}) {
+  const mime = typ === "pdf" ? "application/pdf" : "image/jpeg";
+  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/image/upload`;
 
-  const form = new FormData();
-  form.append("file", {
-    uri,
-    type: typ === "raw" ? "application/pdf" : "image/jpeg",
-    name: dateiname || `upload_${Date.now()}.${typ === "raw" ? "pdf" : "jpg"}`,
+  const dataUri = base64
+    ? `data:${mime};base64,${base64}`
+    : await alsDataUri(uri, mime);
+
+  const body =
+    "upload_preset=" + encodeURIComponent(CLOUDINARY.uploadPreset) +
+    "&file=" + encodeURIComponent(dataUri);
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
   });
-  form.append("upload_preset", CLOUDINARY.uploadPreset);
-
-  const res = await fetch(endpoint, { method: "POST", body: form });
   const data = await res.json();
 
   if (!res.ok || data.error) {
-    const msg = data && data.error ? data.error.message : "Upload fehlgeschlagen.";
-    throw new Error(msg);
+    const msg = data && data.error ? data.error.message : `HTTP ${res.status}`;
+    throw new Error("Upload fehlgeschlagen: " + msg);
   }
-  return { url: data.secure_url, publicId: data.public_id };
+  return {
+    url: data.secure_url,
+    publicId: data.public_id,
+    seiten: data.pages || 1, // Seitenzahl bei PDFs
+  };
 }
 
-export default { CLOUDINARY, ladeDateiHoch };
+// Liefert die Bild-URL einer einzelnen PDF-Seite (1-basiert).
+// Beispiel: .../image/upload/v123/abc.pdf -> .../image/upload/pg_2,w_1200,f_jpg/v123/abc.jpg
+export function pdfSeitenBild(pdfUrl, seite, breite = 1200) {
+  if (!pdfUrl) return null;
+  return pdfUrl
+    .replace("/upload/", `/upload/pg_${seite},w_${breite},f_jpg/`)
+    .replace(/\.pdf($|\?)/, ".jpg$1");
+}
+
+export default { CLOUDINARY, ladeDateiHoch, pdfSeitenBild };

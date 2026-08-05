@@ -13,8 +13,8 @@ import {
   Pressable,
   FlatList,
   useWindowDimensions,
-  Alert,
 } from "react-native";
+import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ScreenCapture from "expo-screen-capture";
@@ -141,9 +141,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
   },
-  zaehler: { fontFamily: schrift.head, fontSize: 16, color: farben.textWeich, letterSpacing: 0.5 },
+  zaehler: { ...schrift.head, fontSize: 16, color: farben.textWeich, letterSpacing: 0.5 },
   schliessen: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: 15,
     color: farben.text,
     letterSpacing: 0.5,
@@ -157,11 +157,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingBottom: 12,
   },
-  notiz: { fontFamily: schrift.body, fontSize: 15, color: farben.text, marginBottom: 4 },
-  datum: { fontFamily: schrift.body, fontSize: 13, color: farben.textMatt },
+  notiz: { ...schrift.body, fontSize: 15, color: farben.text, marginBottom: 4 },
+  datum: { ...schrift.body, fontSize: 13, color: farben.textMatt },
   loeschen: { marginTop: 14, alignSelf: "flex-start" },
   loeschenText: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: 14,
     color: farben.rotHell,
     letterSpacing: 0.5,

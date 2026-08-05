@@ -13,10 +13,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  Alert,
 } from "react-native";
+import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
-import DateTimePicker from "@react-native-community/datetimepicker";
+// Der native Datumswähler existiert nicht im Web — dort nutzen wir ein
+// HTML-Datumsfeld (unter react-native-web sind DOM-Elemente erlaubt).
+const DateTimePicker =
+  Platform.OS === "web"
+    ? null
+    : require("@react-native-community/datetimepicker").default;
 import {
   collection,
   onSnapshot,
@@ -186,21 +191,46 @@ export default function TermineScreen({ route }) {
               <Text style={styles.formTitel}>Neuer Termin</Text>
 
               <Text style={styles.kleinLabel}>Datum</Text>
-              <Pressable onPress={() => setPickerAuf(true)} style={styles.datumFeld}>
-                <Text style={styles.datumText}>{datumDe(datum)}</Text>
-              </Pressable>
-              {pickerAuf ? (
-                <DateTimePicker
-                  value={datum}
-                  mode="date"
-                  display={Platform.OS === "ios" ? "spinner" : "default"}
-                  themeVariant="dark"
-                  onChange={(e, gewaehlt) => {
-                    setPickerAuf(Platform.OS === "ios");
-                    if (gewaehlt) setDatum(gewaehlt);
+              {Platform.OS === "web" ? (
+                // HTML-Datumsfeld (nur im Web) — öffnet den Browser-Datumswähler
+                <input
+                  type="date"
+                  value={datum.toISOString().slice(0, 10)}
+                  onChange={(e) => {
+                    const d = new Date(e.target.value + "T12:00:00");
+                    if (!isNaN(d.getTime())) setDatum(d);
+                  }}
+                  style={{
+                    background: "rgba(255,255,255,.05)",
+                    border: "1.5px solid rgba(255,255,255,.14)",
+                    borderRadius: 12,
+                    padding: "15px 16px",
+                    color: "#fff",
+                    fontSize: 16,
+                    marginBottom: 16,
+                    colorScheme: "dark",
+                    width: "100%",
                   }}
                 />
-              ) : null}
+              ) : (
+                <>
+                  <Pressable onPress={() => setPickerAuf(true)} style={styles.datumFeld}>
+                    <Text style={styles.datumText}>{datumDe(datum)}</Text>
+                  </Pressable>
+                  {pickerAuf ? (
+                    <DateTimePicker
+                      value={datum}
+                      mode="date"
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      themeVariant="dark"
+                      onChange={(e, gewaehlt) => {
+                        setPickerAuf(Platform.OS === "ios");
+                        if (gewaehlt) setDatum(gewaehlt);
+                      }}
+                    />
+                  ) : null}
+                </>
+              )}
 
               <Feld label="Titel" wert={titel} onChangeText={setTitel} platzhalter="z. B. Fliesenleger vor Ort" />
               <Feld
@@ -236,15 +266,15 @@ const styles = StyleSheet.create({
   tKarte: { marginBottom: 12 },
   gedimmt: { opacity: 0.55 },
   tReihe: { flexDirection: "row" },
-  tDatum: { fontFamily: schrift.head, fontSize: 22, color: farben.text, letterSpacing: 0.5 },
-  tTitel: { fontFamily: schrift.bodyMed, fontSize: 16, color: farben.text, marginTop: 4 },
+  tDatum: { ...schrift.head, fontSize: 22, color: farben.text, letterSpacing: 0.5 },
+  tTitel: { ...schrift.bodyMed, fontSize: 16, color: farben.text, marginTop: 4 },
   tMatt: { color: farben.textWeich },
-  tBeschreibung: { fontFamily: schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 4, lineHeight: 20 },
+  tBeschreibung: { ...schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 4, lineHeight: 20 },
   tAktionen: { flexDirection: "row", gap: 20, marginTop: 14 },
-  tAktion: { fontFamily: schrift.headHalb, fontSize: 14, color: farben.textWeich, letterSpacing: 0.5, textTransform: "uppercase" },
-  formTitel: { fontFamily: schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5, marginBottom: 14 },
+  tAktion: { ...schrift.headHalb, fontSize: 14, color: farben.textWeich, letterSpacing: 0.5, textTransform: "uppercase" },
+  formTitel: { ...schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5, marginBottom: 14 },
   kleinLabel: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: groessen.klein,
     color: farben.textWeich,
     letterSpacing: 0.5,
@@ -260,5 +290,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 16,
   },
-  datumText: { fontFamily: schrift.body, fontSize: 16, color: farben.text },
+  datumText: { ...schrift.body, fontSize: 16, color: farben.text },
 });

@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: "center", padding: 24 },
   logoBox: { alignItems: "center", marginBottom: 36 },
   appName: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: 40,
     color: farben.text,
     letterSpacing: 1,
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   appOwner: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: 13,
     color: farben.textMatt,
     letterSpacing: 1,
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   titel: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: groessen.h1,
     color: farben.text,
     letterSpacing: 0.5,
@@ -137,6 +137,6 @@ const styles = StyleSheet.create({
   },
   unter: { marginBottom: 26 },
   link: { marginTop: 22, alignItems: "center" },
-  linkText: { fontFamily: schrift.body, fontSize: 15, color: farben.textMatt },
-  linkStark: { color: farben.rotHell, fontFamily: schrift.bodyMed },
+  linkText: { ...schrift.body, fontSize: 15, color: farben.textMatt },
+  linkStark: { ...schrift.bodyMed, color: farben.rotHell },
 });

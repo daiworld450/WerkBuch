@@ -40,13 +40,16 @@ const AppTheme = {
 
 const kopfOptionen = {
   headerStyle: { backgroundColor: farben.bg },
-  headerTintColor: farben.text,
+  // Zurück-Pfeil (und -Titel auf iOS) in Rot — Titel bleibt über
+  // headerTitleStyle separat weiß.
+  headerTintColor: farben.rot,
   headerTitleStyle: {
-    fontFamily: schrift.head,
+    ...schrift.head,
     fontSize: 20,
     letterSpacing: 0.5,
     color: farben.text,
   },
+  headerBackTitleStyle: { ...schrift.bodyMed },
   headerShadowVisible: false,
   contentStyle: { backgroundColor: farben.bg },
 };

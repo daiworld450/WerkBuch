@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 24, paddingBottom: 48 },
   unter: { marginBottom: 22, marginTop: 6 },
   tipp: {
-    fontFamily: schrift.body,
+    ...schrift.body,
     fontSize: 12.5,
     color: farben.textMatt,
     marginTop: -6,
@@ -169,5 +169,5 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 16,
   },
-  hinweisText: { fontFamily: schrift.body, fontSize: 14, color: farben.textWeich, lineHeight: 20 },
+  hinweisText: { ...schrift.body, fontSize: 14, color: farben.textWeich, lineHeight: 20 },
 });

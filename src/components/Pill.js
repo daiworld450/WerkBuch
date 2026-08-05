@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
     backgroundColor: farben.auswahlBg,
   },
   text: {
-    fontFamily: schrift.headHalb,
+    ...schrift.headHalb,
     fontSize: 13,
     color: farben.textWeich,
     letterSpacing: 1,

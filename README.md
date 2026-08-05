@@ -107,6 +107,23 @@ muss erlaubt sein).
 
 ---
 
+## 4b. Web-App (Nutzung im Alltag: iPhone-Homescreen, Browser)
+
+Die Web-Version läuft identisch zu Android/iOS und wird **automatisch bei
+jedem Push auf `main`** über GitHub Actions gebaut und veröffentlicht:
+
+**Live:** https://daiworld450.github.io/WerkBuch/
+
+- Auf dem iPhone in **Safari** öffnen → Teilen-Symbol → **„Zum
+  Home-Bildschirm"** → startet danach bildschirmfüllend wie eine native App.
+- Lokal von Hand bauen: `npm run build:web` erzeugt `dist/` (fertig für
+  GitHub Pages, inkl. iPhone-/PWA-Tags und korrektem `/WerkBuch/`-Basispfad).
+- Workflow-Datei: `.github/workflows/deploy.yml`. Nach einem `git push` dauert
+  die Veröffentlichung ca. 2–3 Minuten (Fortschritt im Reiter **„Actions"**
+  des Repos sichtbar).
+
+---
+
 ## 5. iOS-Build
 
 ```bash

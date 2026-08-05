@@ -23,10 +23,12 @@
 // kostenlosen Spark-Tarif.
 // ---------------------------------------------------------------------------
 
+import { Platform } from "react-native";
 import { initializeApp } from "firebase/app";
 import {
   initializeAuth,
   getReactNativePersistence,
+  getAuth,
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -44,10 +46,15 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Auth mit dauerhafter Anmeldung über AsyncStorage
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+// Auth mit dauerhafter Anmeldung.
+// Handy: AsyncStorage-Persistenz. Web: Browser-Persistenz (getAuth reicht dort,
+// getReactNativePersistence existiert in der Web-Variante von Firebase nicht).
+export const auth =
+  Platform.OS === "web"
+    ? getAuth(app)
+    : initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
 
 export const db = getFirestore(app);
 
