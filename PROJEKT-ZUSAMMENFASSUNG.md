@@ -50,7 +50,7 @@ richtigen Baustelle und Bauphase; der Kunde sieht jederzeit den Stand.
 | Anmeldung + Datenbank | **Firebase** (Spark, 0 €) | Projekt `berisa-bau`, E-Mail/Passwort-Login, Firestore mit veröffentlichten Sicherheitsregeln |
 | Fotos + PDFs | **Cloudinary** (0 €) | Cloud `iqigqezt`, unsigniertes Preset `WerkBauBuch`, PDF-Auslieferung aktiviert; Upload per Base64 (zuverlässig auf allen Geräten); PDF-Anzeige als Seitenbilder |
 | App-Builds | **Expo/EAS** | Konto `daiworld`, Projekt `werkbaubuch` (Owner `daiworl450`) |
-| Web-Hosting | **Netlify** (0 €) | Fertiger Ordner wird per Drag & Drop veröffentlicht |
+| Quellcode + Hosting | **GitHub Pages** (0 €) | Repo `daiworld450/WerkBuch`, automatischer Deploy per GitHub Actions bei jedem Push |
 | Technik | Expo **SDK 54**, React Native, JavaScript | Läuft identisch auf iPhone, Android und im Browser |
 
 **Warum kein Firebase Storage?** Der verlangt inzwischen den Blaze-Tarif mit
@@ -75,10 +75,16 @@ Kreditkarte – deshalb Cloudinary. **Warum kein TestFlight?** Apple verlangt
 ## 5. So nutzen Sie die App
 
 ### Empfohlener Weg: Web-App auf dem iPhone (ohne PC, ohne Kosten)
-1. Aktualisierten Ordner **`WerkBuch-Web`** bei **Netlify** hochladen: app.netlify.com → Ihre Seite → Reiter **„Deploys"** → Ordner hineinziehen → „Published"
-2. Die Netlify-Adresse auf dem iPhone in **Safari** öffnen
-3. **Teilen-Symbol → „Zum Home-Bildschirm"** → es entsteht ein echtes App-Symbol (WB-Icon), Start bildschirmfüllend wie eine native App
-4. Anmelden/registrieren und loslegen – Kamera, Fotos, PDFs funktionieren; der PC muss **nicht** laufen
+
+**Live-Adresse:** https://daiworld450.github.io/WerkBuch/
+
+1. Adresse auf dem iPhone in **Safari** öffnen
+2. **Teilen-Symbol → „Zum Home-Bildschirm"** → es entsteht ein echtes App-Symbol (WB-Icon), Start bildschirmfüllend wie eine native App
+3. Anmelden/registrieren und loslegen – Kamera, Fotos, PDFs funktionieren; der PC muss **nicht** laufen
+
+⚠️ **Voraussetzung für die Anmeldung:** In der Firebase-Konsole muss
+`daiworld450.github.io` unter **Authentication → Einstellungen → Autorisierte
+Domains** eingetragen sein. Fehlt der Eintrag, blockiert Firebase das Anmelden.
 
 ### Alternative: Android-APK
 `WerkBuch.apk` auf ein Android-Gerät kopieren/herunterladen und installieren
@@ -129,8 +135,8 @@ iPhone soll.
 
 | # | Schritt | Wer |
 |---|---|---|
-| 1 | `WerkBuch-Web` bei Netlify in die bestehende Seite ziehen („Deploys") | Sie (2 Min) |
-| 2 | Netlify-Adresse auf dem iPhone öffnen → „Zum Home-Bildschirm" | Sie (1 Min) |
+| 1 | In Firebase `daiworld450.github.io` als autorisierte Domain eintragen (falls noch nicht) | Sie (1 Min) |
+| 2 | Adresse auf dem iPhone öffnen → „Zum Home-Bildschirm" | Sie (1 Min) |
 | 3 | Einmal komplett durchtesten (Handwerker + Kunde, Foto + PDF) | Sie + ich |
 | 4 | Optional: Android-APK auf aktuellen Stand neu bauen | ich (~15 Min) |
 | 5 | Optional (später): Apple Developer + TestFlight für native iPhone-App | Sie zahlen, ich baue |
@@ -139,7 +145,8 @@ iPhone soll.
 
 ## 10. Wie Updates künftig laufen
 
-Änderungswunsch beschreiben → ich passe den Code an und prüfe ihn →
-`npx expo export --platform web` erzeugt den neuen `dist`-Ordner →
-diesen bei Netlify in „Deploys" ziehen → **gleiche Adresse, neue Version**.
-Auf dem iPhone reicht danach ein Neuladen der App.
+Änderungswunsch beschreiben → ich passe den Code an, prüfe ihn und **pushe zu
+GitHub** → GitHub Actions baut und veröffentlicht automatisch (~2–3 Min) →
+**gleiche Adresse, neue Version**. Auf dem iPhone reicht danach ein Neuladen.
+
+**Sie müssen dabei gar nichts mehr tun** – kein Ordner hochladen, kein Klicken.
