@@ -13,6 +13,19 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/baustellen/$(bid)).data.kundeId == meineUid();
     }
 
+    // Unterordner einer Baustelle, die ihre EIGENE, engere Regel mitbringen.
+    // Sie werden weiter unten von der allgemeinen Sammelregel ausgenommen —
+    // an einer Stelle gepflegt, damit read und write nicht auseinanderlaufen.
+    function eigeneRegeln() {
+      return ['angebot', 'freigaben', 'protokoll', 'guthaben',
+              'zulagenBestellungen', 'nachrichten'];
+    }
+
+    function istHandwerker() {
+      return angemeldet() &&
+        get(/databases/$(database)/documents/users/$(meineUid())).data.rolle == 'handwerker';
+    }
+
     // -------------------------------------------------------------- users
     match /users/{uid} {
       // Angemeldete dürfen Profile lesen (nötig, um Kunden per E-Mail zu finden)
@@ -46,12 +59,85 @@ service cloud.firestore {
         );
       }
 
+      // ------------------------------------------------ Nachweis-Sammlungen
+      // Freigaben, Protokoll und Guthaben sind BEWEISUNTERLAGEN. Sie werden
+      // ausschließlich serverseitig durch die Cloud Functions geschrieben
+      // (das Admin-SDK umgeht diese Regeln) und sind hier für jeden Client
+      // schreibgeschützt — auch für den Handwerker.
+      //
+      // Ohne diese Sperre wäre der ganze Nachweis wertlos: Wer nachträglich
+      // ändern kann, was der Kunde freigegeben hat, kann nichts belegen.
+      match /freigaben/{freigabeId} {
+        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow write: if false;
+      }
+
+      match /protokoll/{eintragId} {
+        allow read: if angemeldet() && istHandwerkerVon(bid);
+        allow write: if false;
+      }
+
+      match /guthaben/{eintragId} {
+        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow write: if false;
+      }
+
+      match /zulagenBestellungen/{bestellId} {
+        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        // Nur der Handwerker darf einen Sonderwunsch bepreisen bzw. eine
+        // wartende Bestellung freigeben — und dabei ausschließlich die dafür
+        // nötigen Felder anfassen, nicht Positionen oder Beträge der
+        // ursprünglichen Kundenbestellung.
+        allow update: if angemeldet() && istHandwerkerVon(bid) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'pruefGrund', 'preisNotiz', 'geprueftAm', 'geprueftVon']) &&
+          request.resource.data.status in ['bestaetigt', 'abgelehnt', 'wartet_auf_pruefung'];
+        allow create, delete: if false;
+      }
+
+      match /nachrichten/{nachrichtId} {
+        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow create: if angemeldet() && istHandwerkerVon(bid);
+        allow update, delete: if false;
+      }
+
       // Alle übrigen Unterordner (fotos, masse, material, termine, raum):
       // lesen für Handwerker + Kunde, schreiben nur Handwerker.
+      //
+      // ACHTUNG: Firestore verknüpft alle passenden Regeln mit ODER. Diese
+      // Sammelregel greift deshalb AUCH auf die oben genannten Sammlungen —
+      // ohne den Ausschluss würde sie deren engere Regeln wieder aufheben:
+      // die Schreibsperre der Nachweise ebenso wie die Leseeinschränkung des
+      // Protokolls. Der Ausschluss muss deshalb für read UND write gelten;
+      // die eigenen Regeln oben erteilen die Rechte, die dort gelten sollen.
+      //
+      // Wer später eine weitere geschützte Sammlung ergänzt, muss sie AUCH
+      // hier eintragen — sonst greift wieder diese weite Regel.
       match /{unterordner}/{docId} {
-        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
-        allow write: if angemeldet() && istHandwerkerVon(bid);
+        allow read: if angemeldet() &&
+          (istHandwerkerVon(bid) || istKundeVon(bid)) &&
+          !(unterordner in eigeneRegeln());
+        allow write: if angemeldet() && istHandwerkerVon(bid) &&
+          !(unterordner in eigeneRegeln());
       }
+    }
+
+    // ------------------------------------------------------ zulagenKatalog
+    // Preise und Beschreibungen der wählbaren Zusatzleistungen.
+    // Der Kunde im Portal liest sie nicht hierüber, sondern bekommt sie von
+    // der Cloud Function geliefert — er ist ja nicht angemeldet.
+    match /zulagenKatalog/{sku} {
+      allow read: if angemeldet();
+      allow write: if istHandwerker();
+    }
+
+    // ----------------------------------------------------------- magicLinks
+    // Enthält die Zugangs-Abdrücke der Kundenlinks. Kein Client darf hier
+    // lesen oder schreiben: Wer diese Sammlung lesen könnte, sähe, welche
+    // Zugänge existieren, und könnte Verifikations-Zähler zurücksetzen.
+    // Ausschließlich die Cloud Functions greifen darauf zu.
+    match /magicLinks/{tokenAbdruck} {
+      allow read, write: if false;
     }
   }
 }

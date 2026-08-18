@@ -77,6 +77,9 @@ export default function NeueBaustelleScreen({ navigation }) {
         handwerkerId: profil.id,
         kundeId,
         kundeName,
+        // Auch ohne Kundenkonto merken: Über diese Adresse wird später der
+        // Angebots-Link verschickt — dafür braucht der Kunde kein Konto.
+        kundeEmail: mail || null,
         status: "In Planung",
         fortschritt: 0,
         fotoAnzahl: 0,

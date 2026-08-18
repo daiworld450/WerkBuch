@@ -12,11 +12,13 @@ import { farben, schrift } from "../theme";
 import Ladeanzeige from "../components/Ladeanzeige";
 
 import LoginScreen from "../screens/LoginScreen";
+import PortalScreen from "../screens/PortalScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import BaustellenListScreen from "../screens/BaustellenListScreen";
 import NeueBaustelleScreen from "../screens/NeueBaustelleScreen";
 import BaustelleDetailScreen from "../screens/BaustelleDetailScreen";
 import FotosScreen from "../screens/FotosScreen";
+import VisualisierungScreen from "../screens/VisualisierungScreen";
 import FotoViewerScreen from "../screens/FotoViewerScreen";
 import MasseScreen from "../screens/MasseScreen";
 import MaterialScreen from "../screens/MaterialScreen";
@@ -54,15 +56,56 @@ const kopfOptionen = {
   contentStyle: { backgroundColor: farben.bg },
 };
 
+// Adressen im Browser. Der Kundenlink /angebot/<Token> muss den Kunden direkt
+// ins Portal führen — ohne Anmeldung, ohne Umweg über den Login-Bildschirm.
+const linking = {
+  prefixes: [],
+  config: {
+    screens: {
+      Portal: "angebot/:token",
+      Login: "anmelden",
+      Register: "registrieren",
+      Baustellen: "baustellen",
+    },
+  },
+};
+
+// Erkennt einen Kundenlink schon vor dem Aufbau der Navigation. Nötig, weil
+// die beiden bestehenden Zweige (angemeldet / nicht angemeldet) den
+// Portal-Bildschirm sonst gar nicht enthalten würden.
+function portalTokenAusAdresse() {
+  if (typeof window === "undefined") return null;
+  const treffer = window.location?.pathname?.match(/\/angebot\/([A-Za-z0-9_-]+)/);
+  return treffer ? treffer[1] : null;
+}
+
 export default function Navigation() {
-  const { user, profil, laedt } = useAuth();
+  const { user, laedt } = useAuth();
+  const portalToken = portalTokenAusAdresse();
+
+  // Der Kundenlink hat Vorrang: Wer über einen Angebots-Link kommt, landet im
+  // Portal — auch wenn zufällig noch ein Handwerker-Konto angemeldet ist.
+  if (portalToken) {
+    return (
+      <NavigationContainer theme={AppTheme}>
+        <Stack.Navigator screenOptions={kopfOptionen}>
+          <Stack.Screen
+            name="Portal"
+            component={PortalScreen}
+            initialParams={{ token: portalToken }}
+            options={{ headerShown: false }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
+  }
 
   if (laedt) return <Ladeanzeige text="Anmeldung wird geprüft …" />;
 
   const angemeldet = !!user;
 
   return (
-    <NavigationContainer theme={AppTheme}>
+    <NavigationContainer theme={AppTheme} linking={linking}>
       <Stack.Navigator screenOptions={kopfOptionen}>
         {!angemeldet ? (
           <>
@@ -103,6 +146,11 @@ export default function Navigation() {
               name="FotoViewer"
               component={FotoViewerScreen}
               options={{ headerShown: false, presentation: "fullScreenModal" }}
+            />
+            <Stack.Screen
+              name="Visualisierung"
+              component={VisualisierungScreen}
+              options={{ title: "Entwurf" }}
             />
             <Stack.Screen
               name="Masse"

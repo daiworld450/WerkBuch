@@ -11,6 +11,7 @@ export default function Feld({
   wert,
   onChangeText,
   platzhalter,
+  style,
   ...rest
 }) {
   const [fokus, setFokus] = useState(false);
@@ -24,8 +25,10 @@ export default function Feld({
         placeholderTextColor={farben.platzhalter}
         onFocus={() => setFokus(true)}
         onBlur={() => setFokus(false)}
-        style={[styles.feld, fokus && styles.feldFokus]}
         {...rest}
+        // Nach rest, damit ein mitgegebener style das Grunddesign ergänzt
+        // statt es zu ersetzen.
+        style={[styles.feld, fokus && styles.feldFokus, style]}
       />
     </View>
   );

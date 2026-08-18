@@ -107,6 +107,74 @@ muss erlaubt sein).
 
 ---
 
+## 3b. Kundenportal & Zulagen (Modul `offers`/`addons`)
+
+Der Kunde bekommt einen persönlichen Link und sieht sein Angebot ohne
+Anmeldung — auf dem Handy, im Browser. Er kann dort optionale Zusatzleistungen
+dazuwählen und verbindlich beauftragen. Jede Freigabe wird beweissicher
+protokolliert. Vollständige Beschreibung: `docs/spezifikation-angebote.md`.
+
+**Was der Handwerker tut:** Angebots-PDF wie gewohnt hochladen → im
+Angebots-Bildschirm die Kunden-E-Mail eintragen → „Angebots-Link senden".
+
+**Was serverseitig läuft:** Cloud Functions in `functions/`. Sie prüfen den
+Link-Token, versenden den Sicherheitscode und schreiben die Freigabe-Datensätze.
+Der Kunde ist nicht angemeldet — Firestore-Regeln allein könnten seinen Zugriff
+deshalb gar nicht prüfen.
+
+### Einmalige Einrichtung
+
+1. **Blaze-Tarif aktivieren** (Firebase-Konsole → Tarif). Cloud Functions gibt
+   es nicht im Spark-Tarif. Die kostenlosen Kontingente bleiben identisch; bei
+   dem hier zu erwartenden Umfang entstehen praktisch keine Kosten.
+2. **Gmail-App-Passwort erzeugen** (Google-Konto → Sicherheit →
+   Bestätigung in zwei Schritten → App-Passwörter). Das ist **nicht** das
+   normale Kennwort und einzeln widerrufbar.
+3. Passwort als Secret hinterlegen und Functions veröffentlichen:
+   ```bash
+   firebase functions:secrets:set MAIL_PASSWORT
+   firebase deploy --only functions,firestore:rules
+   ```
+4. Einmalig den Zulagen-Katalog anlegen: Funktion `katalogEinrichten` aufrufen
+   (aus der App heraus als Handwerker, oder in der Firebase-Konsole). Danach
+   sind Preise und Texte direkt in Firestore unter `zulagenKatalog` pflegbar.
+
+### Preise und Grenzen ändern
+
+Alle einstellbaren Werte stehen gebündelt in `functions/src/config.js`:
+Grundkontingent, Zulagenpreise samt Staffeln, Prüfgrenzen (Stückzahl und
+Summe), Gültigkeitsdauer, Rechtstexte. Nach einer Änderung `firebase deploy
+--only functions`. Bereits in Firestore angelegte Katalogeinträge werden dabei
+**nicht** überschrieben — dort geänderte Preise bleiben erhalten.
+
+### Tests
+
+```bash
+cd functions && npm test
+```
+
+Deckt die Akzeptanzkriterien aus Kapitel 17 der Spezifikation ab: Preisstaffeln,
+getrennte Steuerrundung, Prüfgrenzen, Zugangs- und Codeprüfung, Dokument-Abdruck,
+Doppelklick-Schutz, Pflichtangaben.
+
+Die Sicherheitsregeln werden getrennt gegen den Emulator geprüft (startet ihn
+selbst, braucht keine Anmeldung):
+
+```bash
+cd functions && npm run test:regeln
+```
+
+> ⚠️ **Fallstrick, den dieser Test abdeckt:** Firestore verknüpft alle
+> zutreffenden Regeln mit **ODER**. Eine allgemeine Sammelregel wie
+> `match /{unterordner}/{docId}` greift deshalb auch auf `freigaben`,
+> `protokoll` und `guthaben` — und würde deren Schreibsperre wieder aufheben,
+> obwohl dort ausdrücklich `allow write: if false` steht. Die Sammelregel
+> schließt diese Sammlungen deshalb ausdrücklich aus. Wer später eine weitere
+> Nachweis-Sammlung ergänzt, muss sie **auch** in diese Ausschlussliste
+> eintragen — sonst ist sie beschreibbar, ohne dass es auffällt.
+
+---
+
 ## 4b. Web-App (Nutzung im Alltag: iPhone-Homescreen, Browser)
 
 Die Web-Version läuft identisch zu Android/iOS und wird **automatisch bei

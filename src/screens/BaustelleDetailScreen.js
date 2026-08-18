@@ -37,6 +37,7 @@ const STATUS = ["In Planung", "In Ausführung", "Abgeschlossen"];
 
 const EINSTIEGE = [
   { key: "Fotos", symbol: "📷", titel: "Fotos", text: "Bilder nach Bauphase sortiert" },
+  { key: "Visualisierung", symbol: "🎨", titel: "Entwurf", text: "Foto aufnehmen, fertiges Bad zeigen" },
   { key: "Masse", symbol: "📐", titel: "Maße & Flächen", text: "Raummaße und automatische Flächenberechnung" },
   { key: "Material", symbol: "🧱", titel: "Material", text: "Fliesen, Boden, Sanitär" },
   { key: "Termine", symbol: "📅", titel: "Termine", text: "Zeitplan der Sanierung" },
@@ -168,7 +169,13 @@ export default function BaustelleDetailScreen({ route, navigation }) {
 
         {/* Angebot – Text je nach Rolle */}
         <Karte
-          onPress={() => navigation.navigate("Angebot", { baustelleId })}
+          onPress={() =>
+            navigation.navigate("Angebot", {
+              baustelleId,
+              kundeEmail: baustelle?.kundeEmail || "",
+              kundeName: baustelle?.kundeName || "",
+            })
+          }
           style={styles.einstieg}
         >
           <Text style={styles.eSymbol}>📄</Text>
