@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# wrangler.toml — Einstellungen für das WerkBuch-Kundenportal-Backend.
+#
+# Was hier NICHT hineingehört: Geheimnisse. Die werden gesondert gesetzt:
+#   npx wrangler secret put FIRESTORE_DIENSTKONTO_JSON
+#   npx wrangler secret put BREVO_API_KEY
+# Danach liegen sie nur im Cloudflare-Konto — nicht im Projektordner und nicht
+# auf GitHub.
+#
+# Veröffentlichen mit:  npm run veroeffentlichen
+# Läuft im kostenlosen Cloudflare-Workers-Plan (100.000 Aufrufe/Tag gratis),
+# keine Kreditkarte nötig — genau wie bauvision/worker.
+# ---------------------------------------------------------------------------
+
+name = "werkbuch"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+[vars]
+# Das Firebase/Firestore-Projekt, gegen das der Worker arbeitet.
+FIRESTORE_PROJEKT_ID = "berisa-bau"
+
+# Positivliste erlaubter Web-Herkünfte (CORS), kommagetrennt. Die native App
+# ist davon nicht betroffen (kein Browser, keine CORS-Prüfung).
+ERLAUBTE_HERKUENFTE = "https://daiworld450.github.io"

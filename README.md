@@ -117,51 +117,73 @@ protokolliert. Vollständige Beschreibung: `docs/spezifikation-angebote.md`.
 **Was der Handwerker tut:** Angebots-PDF wie gewohnt hochladen → im
 Angebots-Bildschirm die Kunden-E-Mail eintragen → „Angebots-Link senden".
 
-**Was serverseitig läuft:** Cloud Functions in `functions/`. Sie prüfen den
-Link-Token, versenden den Sicherheitscode und schreiben die Freigabe-Datensätze.
-Der Kunde ist nicht angemeldet — Firestore-Regeln allein könnten seinen Zugriff
+**Was serverseitig läuft:** ein Cloudflare Worker in `worker/` — bewusst
+**kein** Firebase Cloud Function, denn die verlangen den kostenpflichtigen
+Blaze-Tarif (Kreditkarte hinterlegen). Cloudflare Workers laufen im
+kostenlosen Plan (100.000 Aufrufe/Tag gratis, keine Kreditkarte) — dasselbe
+Muster wie bei BauVision (`bauvision/worker/`). Der Worker prüft den
+Link-Token, versendet den Sicherheitscode über Brevo und schreibt die
+Freigabe-Datensätze über einen selbst mitgebrachten Firestore-REST-Client
+(Google-Dienstkonto statt `firebase-admin`, das in Workers nicht läuft). Der
+Kunde ist nicht angemeldet — Firestore-Regeln allein könnten seinen Zugriff
 deshalb gar nicht prüfen.
 
 ### Einmalige Einrichtung
 
-1. **Blaze-Tarif aktivieren** (Firebase-Konsole → Tarif). Cloud Functions gibt
-   es nicht im Spark-Tarif. Die kostenlosen Kontingente bleiben identisch; bei
-   dem hier zu erwartenden Umfang entstehen praktisch keine Kosten.
-2. **Gmail-App-Passwort erzeugen** (Google-Konto → Sicherheit →
-   Bestätigung in zwei Schritten → App-Passwörter). Das ist **nicht** das
-   normale Kennwort und einzeln widerrufbar.
-3. Passwort als Secret hinterlegen und Functions veröffentlichen:
+1. **Kostenloses Cloudflare-Konto** anlegen (dash.cloudflare.com, keine
+   Kreditkarte nötig).
+2. **Google-Dienstkonto** anlegen: Firebase-Konsole → Zahnrad ⚙ →
+   Projekteinstellungen → Dienstkonten → „Neuen privaten Schlüssel generieren".
+   Lädt eine JSON-Datei herunter — das ist der Ersatz für `firebase-admin`s
+   Zugriff, mit denselben Rechten.
+3. **Kostenloses Brevo-Konto** anlegen (brevo.com, keine Kreditkarte, 300
+   Mails/Tag gratis) für den Mailversand. API-Schlüssel unter Einstellungen →
+   SMTP & API erzeugen. Absenderadresse (`berisabau@gmail.com`, siehe
+   `worker/src/config.js`) dort als Absender verifizieren.
+4. Im Ordner `worker/`:
    ```bash
-   firebase functions:secrets:set MAIL_PASSWORT
-   firebase deploy --only functions,firestore:rules
+   cd worker
+   npm install
+   npm run anmelden
+   npm run dienstkonto-schluessel   # Inhalt der JSON-Datei aus Schritt 2 einfügen
+   npm run mail-schluessel          # Brevo-API-Schlüssel aus Schritt 3 einfügen
+   npm run veroeffentlichen
    ```
-4. Einmalig den Zulagen-Katalog anlegen: Funktion `katalogEinrichten` aufrufen
-   (aus der App heraus als Handwerker, oder in der Firebase-Konsole). Danach
-   sind Preise und Texte direkt in Firestore unter `zulagenKatalog` pflegbar.
+   Die Ausgabe zeigt die Worker-Adresse (`https://werkbuch.DEIN-KONTO.workers.dev`)
+   — diese in `src/portal.js` bei `WORKER_BASIS` eintragen, danach `npm run
+   build:web` und erneut auf GitHub pushen.
+5. Einmalig den Zulagen-Katalog anlegen: als angemeldeter Betriebsinhaber
+   (`berisabau@gmail.com`) den Endpunkt `/handwerker/katalog-einrichten`
+   aufrufen (z. B. über die Handwerker-Ansicht, sobald ein entsprechender
+   Knopf ergänzt wird, oder einmalig per `curl` mit einem gültigen ID-Token).
+   Legt die Startpreise aus `worker/src/config.js` in Firestore unter
+   `zulagenKatalog` an, überschreibt aber nie bereits geänderte Preise.
 
 ### Preise und Grenzen ändern
 
-Alle einstellbaren Werte stehen gebündelt in `functions/src/config.js`:
+Alle einstellbaren Werte stehen gebündelt in `worker/src/config.js`:
 Grundkontingent, Zulagenpreise samt Staffeln, Prüfgrenzen (Stückzahl und
-Summe), Gültigkeitsdauer, Rechtstexte. Nach einer Änderung `firebase deploy
---only functions`. Bereits in Firestore angelegte Katalogeinträge werden dabei
-**nicht** überschrieben — dort geänderte Preise bleiben erhalten.
+Summe), Gültigkeitsdauer, Rechtstexte. Nach einer Änderung `cd worker && npm
+run veroeffentlichen`. Bereits in Firestore angelegte Katalogeinträge werden
+dabei **nicht** überschrieben — dort geänderte Preise bleiben erhalten.
 
 ### Tests
 
 ```bash
-cd functions && npm test
+cd worker && npm test
 ```
 
 Deckt die Akzeptanzkriterien aus Kapitel 17 der Spezifikation ab: Preisstaffeln,
 getrennte Steuerrundung, Prüfgrenzen, Zugangs- und Codeprüfung, Dokument-Abdruck,
-Doppelklick-Schutz, Pflichtangaben.
+Doppelklick-Schutz, Pflichtangaben — außerdem die Firestore-REST-Kodierung, die
+Dienstkonto-Anmeldung (per selbst erzeugtem Test-Schlüsselpaar, ohne echte
+Zugangsdaten), die ID-Token-Prüfung und den Router.
 
 Die Sicherheitsregeln werden getrennt gegen den Emulator geprüft (startet ihn
 selbst, braucht keine Anmeldung):
 
 ```bash
-cd functions && npm run test:regeln
+cd worker && npm run test:regeln
 ```
 
 > ⚠️ **Fallstrick, den dieser Test abdeckt:** Firestore verknüpft alle

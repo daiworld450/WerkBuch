@@ -1,30 +1,35 @@
 // ---------------------------------------------------------------------------
 // mail.js — E-Mail-Versand (Angebots-Link, Sicherheitscode, Bestätigungen).
 //
-// Versand über ein Gmail-App-Passwort, hinterlegt als Firebase-Secret
-// (MAIL_PASSWORT). Ein App-Passwort ist NICHT das normale Google-Kennwort,
-// sondern ein eigens erzeugtes Kennwort nur für dieses Programm — es lässt
-// sich einzeln widerrufen, ohne das Konto anzufassen.
+// Portierung von functions/src/mail.js: Cloudflare Workers haben keinen
+// rohen TCP-Zugriff, Nodemailer/SMTP funktioniert dort nicht. Versand läuft
+// stattdessen über Brevos HTTP-API (dauerhaft kostenlos, 300 Mails/Tag, keine
+// Kreditkarte — Nutzerentscheidung). Der Absender (FIRMA.absenderMail, siehe
+// config.js) muss vorher in Brevo als Absender verifiziert werden.
 //
 // Betreffzeilen enthalten immer Nummer und Betrag im Klartext, damit die Mails
 // im Postfach auffindbar bleiben (Spezifikation Kapitel 11).
+//
+// Zusätzlich gegenüber der Node-Fassung: alle Werte, die aus Kunden- oder
+// Handwerkereingaben stammen (Name, Nachricht, Positionsbezeichnung), werden
+// vor dem Einbetten ins HTML escaped. Die alte Fassung tat das nicht — bei
+// einem Namen oder einer Rückfrage mit spitzen Klammern wäre rohes HTML in
+// die Mail gewandert. E-Mail-Clients führen darin zwar kein Skript aus, aber
+// kaputtes Layout oder eingeschmuggelte Links sind trotzdem vermeidbar.
 // ---------------------------------------------------------------------------
 
-import nodemailer from "nodemailer";
 import { FIRMA } from "./config.js";
 
-let transport = null;
+const BREVO_ENDPUNKT = "https://api.brevo.com/v3/smtp/email";
 
-function holeTransport() {
-  if (transport) return transport;
-  transport = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: FIRMA.absenderMail,
-      pass: process.env.MAIL_PASSWORT,
-    },
-  });
-  return transport;
+function htmlEscape(text) {
+  return String(text ?? "").replace(/[&<>"']/g, (z) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[z]);
 }
 
 function euro(cent) {
@@ -38,43 +43,59 @@ function rahmen(titel, inhaltHtml) {
   return `<!doctype html>
 <html lang="de"><body style="margin:0;background:#0b0b0f;padding:24px;font-family:Helvetica,Arial,sans-serif">
   <div style="max-width:560px;margin:0 auto;background:#12121c;border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:28px;color:#fff">
-    <div style="color:#D00000;font-weight:700;letter-spacing:2px;font-size:13px">${FIRMA.name.toUpperCase()}</div>
-    <h1 style="font-size:22px;margin:12px 0 18px">${titel}</h1>
+    <div style="color:#D00000;font-weight:700;letter-spacing:2px;font-size:13px">${htmlEscape(FIRMA.name.toUpperCase())}</div>
+    <h1 style="font-size:22px;margin:12px 0 18px">${htmlEscape(titel)}</h1>
     ${inhaltHtml}
     <p style="color:rgba(255,255,255,.5);font-size:12px;margin-top:28px;border-top:1px solid rgba(255,255,255,.14);padding-top:16px">
-      ${FIRMA.name} · ${FIRMA.ort}
+      ${htmlEscape(FIRMA.name)} · ${htmlEscape(FIRMA.ort)}
     </p>
   </div>
 </body></html>`;
 }
 
-async function senden({ an, betreff, html, text }) {
-  await holeTransport().sendMail({
-    from: `"${FIRMA.name}" <${FIRMA.absenderMail}>`,
-    to: an,
-    subject: betreff,
-    text,
-    html,
+async function senden(env, { an, betreff, html, text }) {
+  if (!env.BREVO_API_KEY) {
+    throw new Error("BREVO_API_KEY ist nicht gesetzt (wrangler secret put).");
+  }
+  const antwort = await fetch(BREVO_ENDPUNKT, {
+    method: "POST",
+    headers: {
+      "api-key": env.BREVO_API_KEY,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      sender: { name: FIRMA.name, email: FIRMA.absenderMail },
+      to: [{ email: an }],
+      subject: betreff,
+      htmlContent: html,
+      textContent: text,
+    }),
   });
+  if (!antwort.ok) {
+    const fehlerText = await antwort.text().catch(() => "");
+    throw new Error(`Mailversand fehlgeschlagen (HTTP ${antwort.status}): ${fehlerText.slice(0, 300)}`);
+  }
 }
 
-export async function angebotsLinkSenden({ an, kundeName, adresse, betragCent, gueltigBis }) {
+export async function angebotsLinkSenden(env, { an, kundeName, adresse, betragCent, gueltigBis }) {
   const betragText = betragCent != null ? ` über ${euro(betragCent)}` : "";
   const betreff = `Ihr Angebot von ${FIRMA.name}${betragText}`;
+  const nameSicher = htmlEscape(kundeName || "");
   const html = rahmen(
     "Ihr Angebot liegt bereit",
     `<p style="color:rgba(255,255,255,.82);line-height:1.6">
-       Guten Tag ${kundeName || ""},<br><br>
+       Guten Tag ${nameSicher},<br><br>
        Ihr Angebot ist fertig. Sie können es über den folgenden Link ansehen —
        ohne Anmeldung, direkt auf dem Handy:
      </p>
      <p style="margin:24px 0">
-       <a href="${adresse}" style="display:inline-block;background:#D00000;color:#fff;text-decoration:none;padding:14px 28px;border-radius:500px;font-weight:700">
+       <a href="${htmlEscape(adresse)}" style="display:inline-block;background:#D00000;color:#fff;text-decoration:none;padding:14px 28px;border-radius:500px;font-weight:700">
          Angebot ansehen
        </a>
      </p>
      <p style="color:rgba(255,255,255,.6);font-size:13px;line-height:1.6">
-       Der Link ist persönlich für Sie und gültig bis ${gueltigBis}.
+       Der Link ist persönlich für Sie und gültig bis ${htmlEscape(gueltigBis)}.
        Bitte leiten Sie ihn nicht weiter.
      </p>`
   );
@@ -87,10 +108,10 @@ Der Link ist persönlich für Sie und gültig bis ${gueltigBis}.
 
 ${FIRMA.name} · ${FIRMA.ort}`;
 
-  await senden({ an, betreff, html, text });
+  await senden(env, { an, betreff, html, text });
 }
 
-export async function codeSenden({ an, code }) {
+export async function codeSenden(env, { an, code }) {
   const betreff = `Ihr Bestätigungscode: ${code}`;
   const html = rahmen(
     "Ihr Bestätigungscode",
@@ -98,14 +119,14 @@ export async function codeSenden({ an, code }) {
        Bitte geben Sie diesen Code im Angebots-Portal ein:
      </p>
      <div style="font-size:34px;letter-spacing:10px;font-weight:700;text-align:center;padding:20px;background:rgba(255,255,255,.05);border-radius:12px;margin:20px 0">
-       ${code}
+       ${htmlEscape(code)}
      </div>
      <p style="color:rgba(255,255,255,.6);font-size:13px">
        Der Code ist 15 Minuten gültig. Wenn Sie ihn nicht angefordert haben,
        können Sie diese E-Mail ignorieren.
      </p>`
   );
-  await senden({
+  await senden(env, {
     an,
     betreff,
     html,
@@ -113,16 +134,21 @@ export async function codeSenden({ an, code }) {
   });
 }
 
-export async function freigabeBestaetigen({ an, kundeName, entscheidung, betragCent, zeitpunkt, positionen }) {
+export async function freigabeBestaetigen(
+  env,
+  { an, kundeName, entscheidung, betragCent, zeitpunkt, positionen }
+) {
   const angenommen = entscheidung === "angenommen";
   const betreff = angenommen
     ? `Auftragsbestätigung über ${euro(betragCent)} — ${FIRMA.name}`
     : `Ihre Rückmeldung zum Angebot — ${FIRMA.name}`;
+  const nameSicher = htmlEscape(kundeName || "");
+  const zeitpunktSicher = htmlEscape(zeitpunkt);
 
   const liste = (positionen || [])
     .map(
       (p) =>
-        `<tr><td style="padding:6px 0;color:rgba(255,255,255,.82)">${p.menge}× ${p.name}</td>
+        `<tr><td style="padding:6px 0;color:rgba(255,255,255,.82)">${htmlEscape(p.menge)}× ${htmlEscape(p.name)}</td>
          <td style="padding:6px 0;text-align:right;color:#fff">${euro(p.bruttoCent)}</td></tr>`
     )
     .join("");
@@ -131,8 +157,8 @@ export async function freigabeBestaetigen({ an, kundeName, entscheidung, betragC
     angenommen ? "Vielen Dank für Ihren Auftrag" : "Ihre Rückmeldung ist angekommen",
     angenommen
       ? `<p style="color:rgba(255,255,255,.82);line-height:1.6">
-           Guten Tag ${kundeName || ""},<br><br>
-           wir bestätigen Ihre Beauftragung vom ${zeitpunkt}.
+           Guten Tag ${nameSicher},<br><br>
+           wir bestätigen Ihre Beauftragung vom ${zeitpunktSicher}.
          </p>
          ${liste ? `<table style="width:100%;margin:18px 0;border-collapse:collapse">${liste}</table>` : ""}
          <p style="font-size:20px;font-weight:700;margin:18px 0;border-top:1px solid rgba(255,255,255,.14);padding-top:14px">
@@ -143,13 +169,13 @@ export async function freigabeBestaetigen({ an, kundeName, entscheidung, betragC
            Schlussrechnung. Wir melden uns zur weiteren Abstimmung bei Ihnen.
          </p>`
       : `<p style="color:rgba(255,255,255,.82);line-height:1.6">
-           Guten Tag ${kundeName || ""},<br><br>
-           Sie haben das Angebot am ${zeitpunkt} abgelehnt. Wir melden uns bei
+           Guten Tag ${nameSicher},<br><br>
+           Sie haben das Angebot am ${zeitpunktSicher} abgelehnt. Wir melden uns bei
            Ihnen, falls Sie Fragen haben oder ein neues Angebot wünschen.
          </p>`
   );
 
-  await senden({
+  await senden(env, {
     an,
     betreff,
     html,
@@ -159,15 +185,16 @@ export async function freigabeBestaetigen({ an, kundeName, entscheidung, betragC
   });
 }
 
-// Meldung an den Betrieb (nicht an den Kunden).
-export async function betriebBenachrichtigen({ an, titel, zeilen }) {
+// Meldung an den Betrieb (nicht an den Kunden). "zeilen" kann Kundeneingaben
+// enthalten (z.B. eine Rückfrage) — deshalb ebenfalls escaped.
+export async function betriebBenachrichtigen(env, { an, titel, zeilen }) {
   const html = rahmen(
     titel,
     `<ul style="color:rgba(255,255,255,.82);line-height:1.8;padding-left:18px">
-       ${zeilen.map((z) => `<li>${z}</li>`).join("")}
+       ${zeilen.map((z) => `<li>${htmlEscape(z)}</li>`).join("")}
      </ul>`
   );
-  await senden({ an, betreff: `WerkBuch: ${titel}`, html, text: zeilen.join("\n") });
+  await senden(env, { an, betreff: `WerkBuch: ${titel}`, html, text: zeilen.join("\n") });
 }
 
 export default { angebotsLinkSenden, codeSenden, freigabeBestaetigen, betriebBenachrichtigen };

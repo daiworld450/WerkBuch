@@ -25,6 +25,8 @@ import { readFileSync } from "node:fs";
 const HANDWERKER = "hw-1";
 const KUNDE = "ku-1";
 const FREMDER = "fremd-1";
+const BESITZER = "besitzer-1";
+const BESITZER_MAIL = "berisabau@gmail.com";
 const BAUSTELLE = "b-1";
 
 let umgebung;
@@ -71,6 +73,13 @@ after(async () => {
 const alsHandwerker = () => umgebung.authenticatedContext(HANDWERKER).firestore();
 const alsKunde = () => umgebung.authenticatedContext(KUNDE).firestore();
 const alsFremder = () => umgebung.authenticatedContext(FREMDER).firestore();
+// Betriebsinhaber: die Prüfung hängt an E-Mail + email_verified aus dem
+// ID-Token, nicht an der (fälschbaren) Firestore-Rolle — deshalb hier über
+// die Token-Merkmale von authenticatedContext gesetzt, nicht über users/{uid}.
+const alsBesitzer = () =>
+  umgebung
+    .authenticatedContext(BESITZER, { email: BESITZER_MAIL, email_verified: true })
+    .firestore();
 
 // ------------------------------------------------------- Freigaben (Nachweis)
 
@@ -204,12 +213,46 @@ test("Angebot bleibt wie bisher: Kunde darf nur den Status setzen", async () => 
   );
 });
 
-test("Zulagen-Katalog: Handwerker pflegt, Kunde liest nur", async () => {
+test("Zulagen-Katalog: nur der Betriebsinhaber pflegt, alle Angemeldeten lesen", async () => {
   await assertSucceeds(
-    setDoc(doc(alsHandwerker(), "zulagenKatalog", "VIS_EXTRA"), { name: "Test", preisCent: 1900 })
+    setDoc(doc(alsBesitzer(), "zulagenKatalog", "VIS_EXTRA"), { name: "Test", preisCent: 1900 })
   );
   await assertSucceeds(getDoc(doc(alsKunde(), "zulagenKatalog", "VIS_EXTRA")));
   await assertFails(
     setDoc(doc(alsKunde(), "zulagenKatalog", "VIS_EXTRA"), { preisCent: 1 })
+  );
+});
+
+// Regressionstest für die geschlossene Sicherheitslücke: vor der Korrektur
+// prüfte die Katalog-Regel nur istHandwerker(), und "rolle" in users/{uid}
+// war ohne Feld-Beschränkung änderbar — jeder Angemeldete konnte sich damit
+// selbst zum Handwerker machen und den globalen (!) Zulagenkatalog für alle
+// Betriebe manipulieren (Preise auf 0, beliebiges Guthaben).
+test("Zulagen-Katalog: selbstzugewiesene Handwerker-Rolle reicht NICHT mehr", async () => {
+  await umgebung.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users", FREMDER), { rolle: "kunde" });
+  });
+  // Fremder versucht den Angriff: eigene Rolle nachträglich auf "handwerker" setzen.
+  await assertFails(
+    updateDoc(doc(alsFremder(), "users", FREMDER), { rolle: "handwerker" })
+  );
+  // Selbst mit (regelwidrig) gesetzter Rolle bliebe der Katalog gesperrt,
+  // weil istBesitzer() nicht über die Firestore-Rolle, sondern über das
+  // Token geprüft wird.
+  await umgebung.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "users", FREMDER), { rolle: "handwerker" });
+  });
+  await assertFails(
+    setDoc(doc(alsFremder(), "zulagenKatalog", "VIS_EXTRA"), { preisCent: 0 })
+  );
+});
+
+test("users/{uid}: die Rolle ist nach dem Anlegen unveränderlich", async () => {
+  await assertFails(
+    updateDoc(doc(alsKunde(), "users", KUNDE), { rolle: "handwerker" })
+  );
+  // andere Felder bleiben frei änderbar
+  await assertSucceeds(
+    updateDoc(doc(alsKunde(), "users", KUNDE), { telefon: "0176 0000000" })
   );
 });

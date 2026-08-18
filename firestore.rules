@@ -26,12 +26,34 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(meineUid())).data.rolle == 'handwerker';
     }
 
+    // Betriebsinhaber — geprüft über das von Google signierte ID-Token, nicht
+    // über ein Firestore-Feld. request.auth.token.email/email_verified kommen
+    // direkt aus dem Token und sind damit anders als "rolle" nicht durch
+    // einen einfachen Dokument-Schreibzugriff fälschbar.
+    //
+    // Grund: "rolle" in users/{uid} ist eine Selbstauskunft bei der
+    // Registrierung — jeder Angemeldete konnte sie sich (vor dieser
+    // Korrektur) auch nachträglich selbst zuweisen. Für Ressourcen, die den
+    // ganzen Betrieb betreffen (aktuell nur der Zulagenkatalog: eine
+    // GLOBALE Sammlung ohne Baustellenbezug, aus der der Server direkt die
+    // Rechnungsgrundlage lädt), reicht "rolle" deshalb nicht als Schutz.
+    function istBesitzer() {
+      return angemeldet() &&
+        request.auth.token.email == 'berisabau@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
     // -------------------------------------------------------------- users
     match /users/{uid} {
       // Angemeldete dürfen Profile lesen (nötig, um Kunden per E-Mail zu finden)
       allow read: if angemeldet();
       allow create: if angemeldet() && uid == meineUid();
-      allow update, delete: if angemeldet() && uid == meineUid();
+      // "rolle" ist nach dem Anlegen unveränderlich — sonst könnte sich ein
+      // bereits bestehendes Kundenkonto nachträglich selbst zum Handwerker
+      // machen. Alle anderen Felder bleiben frei änderbar.
+      allow update: if angemeldet() && uid == meineUid() &&
+        request.resource.data.rolle == resource.data.rolle;
+      allow delete: if angemeldet() && uid == meineUid();
     }
 
     // --------------------------------------------------------- baustellen
@@ -126,9 +148,14 @@ service cloud.firestore {
     // Preise und Beschreibungen der wählbaren Zusatzleistungen.
     // Der Kunde im Portal liest sie nicht hierüber, sondern bekommt sie von
     // der Cloud Function geliefert — er ist ja nicht angemeldet.
+    //
+    // Schreibrecht bewusst NICHT über istHandwerker(): diese Sammlung ist
+    // global (nicht an eine Baustelle gebunden), ihr Inhalt bestimmt direkt
+    // die Rechnungsgrundlage jeder Freigabe. Nur der Betriebsinhaber selbst
+    // darf sie ändern.
     match /zulagenKatalog/{sku} {
       allow read: if angemeldet();
-      allow write: if istHandwerker();
+      allow write: if istBesitzer();
     }
 
     // ----------------------------------------------------------- magicLinks

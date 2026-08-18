@@ -19,7 +19,12 @@ ios/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
-functions/regeln-ergebnis.txt
+worker/regeln-ergebnis.txt
+
+# Cloudflare (wrangler-Zustand, Dienstkonto-Schlüssel dürfen nie ins Repo)
+.wrangler/
+worker/*.pem
+worker/dienstkonto*.json
 
 # debug
 npm-debug.*

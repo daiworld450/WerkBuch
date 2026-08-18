@@ -1,6 +1,10 @@
 // ---------------------------------------------------------------------------
 // Tests des Zugangs per Link und des Sicherheitscodes
 // (Spezifikation Kapitel 3 und 17).
+//
+// Portierung von functions/test/magicLink.test.js: tokenHashen, codeHashen
+// und codePruefen sind in der Worker-Fassung async (Web Crypto statt
+// node:crypto) — alle betroffenen Aufrufe hier entsprechend mit await.
 // ---------------------------------------------------------------------------
 
 import test from "node:test";
@@ -27,13 +31,13 @@ test("Token ist lang, zufällig und link-tauglich", () => {
   assert.match(a, /^[A-Za-z0-9_-]+$/);
 });
 
-test("Aus dem Abdruck lässt sich der Token nicht zurücklesen", () => {
+test("Aus dem Abdruck lässt sich der Token nicht zurücklesen", async () => {
   const token = tokenErzeugen();
-  const abdruck = tokenHashen(token);
+  const abdruck = await tokenHashen(token);
   assert.notEqual(abdruck, token);
   assert.equal(abdruck.length, 64); // SHA-256 in Hex
   // Gleicher Token ergibt immer denselben Abdruck (sonst wäre er nicht suchbar)
-  assert.equal(tokenHashen(token), abdruck);
+  assert.equal(await tokenHashen(token), abdruck);
 });
 
 test("Code hat die vorgegebene Stellenzahl, auch mit führenden Nullen", () => {
@@ -44,10 +48,10 @@ test("Code hat die vorgegebene Stellenzahl, auch mit führenden Nullen", () => {
   }
 });
 
-test("Vergleich zweier Abdrücke arbeitet zeichenweise sicher", () => {
-  const a = codeHashen("123456");
-  assert.equal(hashGleich(a, codeHashen("123456")), true);
-  assert.equal(hashGleich(a, codeHashen("123457")), false);
+test("Vergleich zweier Abdrücke arbeitet zeichenweise sicher", async () => {
+  const a = await codeHashen("123456");
+  assert.equal(hashGleich(a, await codeHashen("123456")), true);
+  assert.equal(hashGleich(a, await codeHashen("123457")), false);
   assert.equal(hashGleich(a, "zu-kurz"), false);
   assert.equal(hashGleich(a, null), false);
 });
@@ -89,50 +93,50 @@ test("Gültiger Zugang meldet, ob er schon bestätigt wurde", () => {
 
 // ----------------------------------------------------------------- Codeprüfung
 
-function zugangMitCode(code, zusatz = {}) {
+async function zugangMitCode(code, zusatz = {}) {
   return {
-    codeHash: codeHashen(code),
+    codeHash: await codeHashen(code),
     codeGueltigBis: new Date(Date.now() + 10 * 60 * 1000),
     codeVersuche: 0,
     ...zusatz,
   };
 }
 
-test("Richtiger Code wird angenommen", () => {
-  assert.deepEqual(codePruefen(zugangMitCode("123456"), "123456"), { ok: true });
+test("Richtiger Code wird angenommen", async () => {
+  assert.deepEqual(await codePruefen(await zugangMitCode("123456"), "123456"), { ok: true });
 });
 
-test("Leerzeichen um den Code stören nicht", () => {
-  assert.deepEqual(codePruefen(zugangMitCode("123456"), " 123456 "), { ok: true });
+test("Leerzeichen um den Code stören nicht", async () => {
+  assert.deepEqual(await codePruefen(await zugangMitCode("123456"), " 123456 "), { ok: true });
 });
 
-test("Falscher Code nennt die verbleibenden Versuche", () => {
-  const ergebnis = codePruefen(zugangMitCode("123456"), "999999");
+test("Falscher Code nennt die verbleibenden Versuche", async () => {
+  const ergebnis = await codePruefen(await zugangMitCode("123456"), "999999");
   assert.equal(ergebnis.ok, false);
   assert.equal(ergebnis.grund, "falsch");
   assert.equal(ergebnis.verbleibend, ZUGANG.codeMaxVersuche - 1);
 });
 
-test("Nach zu vielen Fehlversuchen wird gesperrt", () => {
-  const ergebnis = codePruefen(
-    zugangMitCode("123456", { codeVersuche: ZUGANG.codeMaxVersuche }),
+test("Nach zu vielen Fehlversuchen wird gesperrt", async () => {
+  const ergebnis = await codePruefen(
+    await zugangMitCode("123456", { codeVersuche: ZUGANG.codeMaxVersuche }),
     "123456"
   );
   assert.equal(ergebnis.ok, false);
   assert.equal(ergebnis.grund, "zu_viele_versuche");
 });
 
-test("Abgelaufener Code wird nicht mehr angenommen", () => {
-  const ergebnis = codePruefen(
-    zugangMitCode("123456", { codeGueltigBis: new Date(Date.now() - 1000) }),
+test("Abgelaufener Code wird nicht mehr angenommen", async () => {
+  const ergebnis = await codePruefen(
+    await zugangMitCode("123456", { codeGueltigBis: new Date(Date.now() - 1000) }),
     "123456"
   );
   assert.equal(ergebnis.ok, false);
   assert.equal(ergebnis.grund, "abgelaufen");
 });
 
-test("Ohne angeforderten Code ist keine Prüfung möglich", () => {
-  const ergebnis = codePruefen({}, "123456");
+test("Ohne angeforderten Code ist keine Prüfung möglich", async () => {
+  const ergebnis = await codePruefen({}, "123456");
   assert.equal(ergebnis.ok, false);
   assert.equal(ergebnis.grund, "kein_code");
 });

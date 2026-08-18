@@ -9,6 +9,13 @@
 // Alle Geldbeträge sind Ganzzahlen in CENT (Spezifikation Kapitel 4) — mit
 // Kommazahlen zu rechnen erzeugt Rundungsfehler, die sich in Summen aufaddieren
 // und dann nicht mehr zur Buchhaltung passen.
+//
+// Unverändert aus functions/src/config.js übernommen (reine Logik, kein
+// Node-/Firebase-Bezug) — mit einer Ausnahme: FIRMA.absenderMail steht jetzt
+// auf das Betriebskonto berisabau@gmail.com (dieselbe Adresse, die auch die
+// Firestore-Regel istBesitzer() prüft), statt der privaten Gmail-Adresse aus
+// der alten Nodemailer-Fassung. Diese Adresse muss in Brevo als Absender
+// verifiziert werden (siehe worker/src/mail.js).
 // ---------------------------------------------------------------------------
 
 // --------------------------------------------------------------- Grundpaket
@@ -191,7 +198,7 @@ export const AGB_STAND = "2026-08-01";
 export const FIRMA = {
   name: "Berisa Bau",
   ort: "Mülheim an der Ruhr",
-  absenderMail: "daiworld450@gmail.com",
+  absenderMail: "berisabau@gmail.com",
   portalBasis: "https://daiworld450.github.io/WerkBuch",
 };
 

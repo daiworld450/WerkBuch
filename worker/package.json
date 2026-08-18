@@ -1,0 +1,22 @@
+{
+  "name": "werkbuch-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kundenportal, Zulagen und Freigabe-Protokoll für WerkBuch (Berisa Bau) — Cloudflare Worker statt Firebase Cloud Functions, damit kein Blaze-Tarif nötig ist",
+  "type": "module",
+  "scripts": {
+    "start": "wrangler dev",
+    "veroeffentlichen": "wrangler deploy",
+    "anmelden": "wrangler login",
+    "dienstkonto-schluessel": "wrangler secret put FIRESTORE_DIENSTKONTO_JSON",
+    "mail-schluessel": "wrangler secret put BREVO_API_KEY",
+    "protokoll": "wrangler tail",
+    "test": "node --experimental-test-module-mocks --test test/zulagen.test.js test/magicLink.test.js test/abdruck.test.js test/firestore.test.js test/authToken.test.js test/mail.test.js test/portal.test.js test/index.test.js",
+    "test:regeln": "firebase emulators:exec --only firestore \"node --test test/regeln.test.js\""
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0",
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}
