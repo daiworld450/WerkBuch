@@ -61,7 +61,22 @@ service cloud.firestore {
       allow read: if angemeldet() &&
         (resource.data.handwerkerId == meineUid() || resource.data.kundeId == meineUid());
       allow create: if angemeldet() && request.resource.data.handwerkerId == meineUid();
-      allow update, delete: if angemeldet() && resource.data.handwerkerId == meineUid();
+      allow update: if angemeldet() && (
+        resource.data.handwerkerId == meineUid() ||
+        // Nachträgliche Selbstverknüpfung: Der Kunde bekommt eine Baustelle
+        // zu sehen, die der Handwerker unter seiner E-Mail-Adresse angelegt
+        // hat, bevor er ein Konto hatte. Eng begrenzt: nur wenn noch niemand
+        // verknüpft ist, die hinterlegte Adresse zum eigenen (von Google
+        // signierten) Konto passt, und ausschließlich kundeId/kundeName
+        // geändert werden — keine anderen Felder, keine fremde UID.
+        (
+          resource.data.kundeId == null &&
+          resource.data.kundeEmail == request.auth.token.email.lower() &&
+          request.resource.data.kundeId == meineUid() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['kundeId', 'kundeName'])
+        )
+      );
+      allow delete: if angemeldet() && resource.data.handwerkerId == meineUid();
 
       // Sonderregel Angebot: der Kunde darf im Dokument angebot/aktuell
       // ausschließlich das Feld "status" (plus aktualisiertAm) auf

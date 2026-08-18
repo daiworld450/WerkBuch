@@ -19,6 +19,8 @@ import {
   deleteDoc,
   collection,
   getDocs,
+  query,
+  where,
 } from "firebase/firestore";
 
 import { db } from "../firebase";
@@ -27,6 +29,7 @@ import { farben, schrift, groessen, textStil } from "../theme";
 import Karte from "../components/Karte";
 import Pill from "../components/Pill";
 import Knopf from "../components/Knopf";
+import Feld from "../components/Feld";
 import Fortschritt from "../components/Fortschritt";
 import Statuspunkt from "../components/Statuspunkt";
 import Ladeanzeige from "../components/Ladeanzeige";
@@ -49,13 +52,17 @@ export default function BaustelleDetailScreen({ route, navigation }) {
   const [baustelle, setBaustelle] = useState(null);
   const [laedt, setLaedt] = useState(true);
   const [weg, setWeg] = useState(false);
+  const [kundeEmailEingabe, setKundeEmailEingabe] = useState("");
+  const [kundeSuchtLaedt, setKundeSuchtLaedt] = useState(false);
 
   useEffect(() => {
     const stop = onSnapshot(
       doc(db, "baustellen", baustelleId),
       (snap) => {
         if (snap.exists()) {
-          setBaustelle({ id: snap.id, ...snap.data() });
+          const daten = { id: snap.id, ...snap.data() };
+          setBaustelle(daten);
+          setKundeEmailEingabe((vorher) => vorher || daten.kundeEmail || "");
         } else {
           setBaustelle(null);
         }
@@ -65,6 +72,49 @@ export default function BaustelleDetailScreen({ route, navigation }) {
     );
     return stop;
   }, [baustelleId]);
+
+  // Sucht per E-Mail erneut nach einem Kundenkonto und verknüpft es —
+  // für Baustellen ohne (korrekte) Adresse, oder falls der Kunde sich beim
+  // Anlegen noch nicht registriert hatte und die automatische Verknüpfung
+  // beim Kunden-Login aus irgendeinem Grund noch nicht gegriffen hat.
+  async function kundeVerknuepfen() {
+    const mail = kundeEmailEingabe.trim().toLowerCase();
+    if (!mail) {
+      Alert.alert("Fehler", "Bitte eine E-Mail-Adresse eingeben.");
+      return;
+    }
+    setKundeSuchtLaedt(true);
+    try {
+      const q = query(
+        collection(db, "users"),
+        where("email", "==", mail),
+        where("rolle", "==", "kunde")
+      );
+      const snap = await getDocs(q);
+      let kundeId = null;
+      let kundeName = null;
+      if (!snap.empty) {
+        const d = snap.docs[0];
+        kundeId = d.id;
+        kundeName = d.data().name || null;
+      }
+      await updateDoc(doc(db, "baustellen", baustelleId), {
+        kundeEmail: mail,
+        kundeId,
+        kundeName,
+      });
+      if (!kundeId) {
+        Alert.alert(
+          "Noch kein Konto gefunden",
+          "Die Adresse ist jetzt hinterlegt. Sobald sich der Kunde mit dieser E-Mail registriert oder anmeldet, wird die Baustelle automatisch mit seinem Konto verknüpft."
+        );
+      }
+    } catch (e) {
+      Alert.alert("Fehler", fehlerText(e));
+    } finally {
+      setKundeSuchtLaedt(false);
+    }
+  }
 
   async function statusSetzen(neu) {
     try {
@@ -204,6 +254,29 @@ export default function BaustelleDetailScreen({ route, navigation }) {
               ))}
             </View>
 
+            <Text style={[styles.label, { marginTop: 22 }]}>Kunde verknüpfen</Text>
+            <Text style={styles.kundeStatus}>
+              {baustelle.kundeId
+                ? `Verknüpft mit ${baustelle.kundeName || baustelle.kundeEmail}`
+                : baustelle.kundeEmail
+                ? "Adresse hinterlegt, aber noch kein Konto verknüpft — erscheint automatisch, sobald sich der Kunde damit anmeldet."
+                : "Noch keine Kunden-E-Mail hinterlegt."}
+            </Text>
+            <Feld
+              wert={kundeEmailEingabe}
+              onChangeText={setKundeEmailEingabe}
+              platzhalter="kunde@email.de"
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            <Knopf
+              titel="Speichern & Konto suchen"
+              variante="ghost"
+              onPress={kundeVerknuepfen}
+              laedt={kundeSuchtLaedt}
+              style={{ marginTop: 10 }}
+            />
+
             <Knopf
               titel="Baustelle löschen"
               variante="ghost"
@@ -253,4 +326,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   chips: { flexDirection: "row", flexWrap: "wrap" },
+  kundeStatus: {
+    ...schrift.body,
+    fontSize: 13,
+    color: farben.textMatt,
+    marginBottom: 10,
+    lineHeight: 18,
+  },
 });

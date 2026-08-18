@@ -66,7 +66,7 @@ export default function NeueBaustelleScreen({ navigation }) {
           kundeName = d.data().name || null;
         } else {
           setHinweis(
-            "Zu dieser E-Mail wurde noch kein Kundenkonto gefunden. Die Baustelle wird trotzdem angelegt und kann später verknüpft werden."
+            "Zu dieser E-Mail wurde noch kein Kundenkonto gefunden. Die Baustelle wird trotzdem angelegt — sobald sich der Kunde mit dieser Adresse registriert oder anmeldet, wird sie automatisch verknüpft."
           );
         }
       }
@@ -137,8 +137,9 @@ export default function NeueBaustelleScreen({ navigation }) {
             keyboardType="email-address"
           />
           <Text style={styles.tipp}>
-            Der Kunde muss bereits ein Konto haben, damit die Verknüpfung
-            sofort klappt.
+            Auch ohne bestehendes Kundenkonto möglich: Die Baustelle wird
+            automatisch verknüpft, sobald sich der Kunde mit dieser Adresse
+            anmeldet.
           </Text>
 
           <Knopf
