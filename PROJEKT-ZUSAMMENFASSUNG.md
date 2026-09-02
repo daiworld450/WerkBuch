@@ -24,6 +24,7 @@ richtigen Baustelle und Bauphase; der Kunde sieht jederzeit den Stand.
 - **Maße & Flächen**: Länge/Breite/Höhe/Abzug eingeben → live berechnet: Bodenfläche, Wandfläche, Fliesenbedarf Boden/Wand (+10 % Verschnitt), Umfang; dazu freie Einzelmaße
 - **Material** nach Kategorie (Fliesen Boden/Wand, Bodenbelag, Sanitär, Sonstiges) mit Menge, Einzelpreis, Zeilensumme und Gesamtsumme (nur für Handwerker sichtbar); Fliesen-Menge per Knopf aus der Flächenberechnung übernehmbar
 - **Termine** mit Datumswahl, Abhaken, Löschen; erledigte/vergangene abgedunkelt
+- **Einsatzplan** (Menüpunkt „📅 Einsatzplan" über der Baustellenliste, nur für den Handwerker): Wochenansicht aller eigenen Baustellen mit Balken je Baustelle und den Zählern „aktiv heute", „diese Woche", „ohne Termin". Grundlage ist der in der Baustelle gesetzte geplante Zeitraum; fehlt der geplante Start, leitet der Einsatzplan den Zeitraum aus den bereits angelegten Terminen ab (frühester bis spätester Termin, gekennzeichnet mit „aus den Terminen") – derselbe Zeitraum muss so nur einmal gepflegt werden
 - **Angebot**: PDF hochladen (max. 10 MB) → Status automatisch „Gesendet"; Betrag optional; Vorschau seitenweise im echten Seitenformat
 
 ### Kunde
