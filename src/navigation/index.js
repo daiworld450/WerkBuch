@@ -24,6 +24,7 @@ import MasseScreen from "../screens/MasseScreen";
 import MaterialScreen from "../screens/MaterialScreen";
 import TermineScreen from "../screens/TermineScreen";
 import AngebotScreen from "../screens/AngebotScreen";
+import EinsatzplanScreen from "../screens/EinsatzplanScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -171,6 +172,11 @@ export default function Navigation() {
               name="Angebot"
               component={AngebotScreen}
               options={{ title: "Angebot" }}
+            />
+            <Stack.Screen
+              name="Einsatzplan"
+              component={EinsatzplanScreen}
+              options={{ title: "Einsatzplan" }}
             />
           </>
         )}
