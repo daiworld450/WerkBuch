@@ -41,7 +41,7 @@ import Feld from "../components/Feld";
 import Knopf from "../components/Knopf";
 import Leerzustand from "../components/Leerzustand";
 import Ladeanzeige from "../components/Ladeanzeige";
-import { datumDe, zuDate } from "../util/format";
+import { datumDe, datumIso, zuDate } from "../util/format";
 import fehlerText from "../util/fehler";
 
 export default function TermineScreen({ route }) {
@@ -195,7 +195,7 @@ export default function TermineScreen({ route }) {
                 // HTML-Datumsfeld (nur im Web) — öffnet den Browser-Datumswähler
                 <input
                   type="date"
-                  value={datum.toISOString().slice(0, 10)}
+                  value={datumIso(datum)}
                   onChange={(e) => {
                     const d = new Date(e.target.value + "T12:00:00");
                     if (!isNaN(d.getTime())) setDatum(d);
