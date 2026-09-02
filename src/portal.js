@@ -28,13 +28,18 @@ const PFADE = {
   ablehnen: "/portal/ablehnen",
   rueckfrageSenden: "/portal/rueckfrage",
   linkVersenden: "/handwerker/link-versenden",
+  bewertungAnfordern: "/handwerker/bewertung-anfordern",
   katalogEinrichten: "/handwerker/katalog-einrichten",
 };
 
-// Diese beiden verlangen eine echte Handwerker-Anmeldung — der Worker prüft
-// das serverseitig noch einmal nach (authToken.js), das ID-Token hier ist nur
+// Diese verlangen eine echte Handwerker-Anmeldung — der Worker prüft das
+// serverseitig noch einmal nach (authToken.js), das ID-Token hier ist nur
 // der Transportweg dafür, kein Vertrauensbeweis für sich allein.
-const ANGEMELDETE_PFADE = new Set(["/handwerker/link-versenden", "/handwerker/katalog-einrichten"]);
+const ANGEMELDETE_PFADE = new Set([
+  "/handwerker/link-versenden",
+  "/handwerker/bewertung-anfordern",
+  "/handwerker/katalog-einrichten",
+]);
 
 function ruf(name) {
   const pfad = PFADE[name];
@@ -92,6 +97,7 @@ export const rueckfrageSenden = ruf("rueckfrageSenden");
 
 // Vom Handwerker aufgerufen (mit Anmeldung)
 export const linkVersenden = ruf("linkVersenden");
+export const bewertungAnfordern = ruf("bewertungAnfordern");
 export const katalogEinrichten = ruf("katalogEinrichten");
 
 // Erzeugt einen Schlüssel, der eine Freigabe eindeutig macht. Wird der Knopf
@@ -112,6 +118,7 @@ export default {
   ablehnen,
   rueckfrageSenden,
   linkVersenden,
+  bewertungAnfordern,
   katalogEinrichten,
   idempotenzSchluessel,
 };
