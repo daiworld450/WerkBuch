@@ -66,7 +66,13 @@ import {
   codePruefen,
 } from "./magicLink.js";
 import { summeRechnen, pruefungNoetig } from "./zulagen.js";
-import { angebotsLinkSenden, codeSenden, freigabeBestaetigen, betriebBenachrichtigen } from "./mail.js";
+import {
+  angebotsLinkSenden,
+  codeSenden,
+  freigabeBestaetigen,
+  bewertungAnfragen,
+  betriebBenachrichtigen,
+} from "./mail.js";
 import {
   dokumentLesen,
   dokumentErstellen,
@@ -769,6 +775,64 @@ export async function katalogEinrichten(env, daten, kontext = {}) {
   return { angelegt: neu, gesamt: ZULAGEN_KATALOG.length };
 }
 
+// ----------------------------------------------------------------------
+// Bewertungsanfrage nach der Abnahme (Bauplan S13). Aktuell sammelt niemand
+// systematisch Bewertungen — dieser Endpunkt schließt die Lücke mit einem
+// bewussten Klick des Handwerkers, statt vollautomatisch bei jedem
+// Statuswechsel zu feuern: ein Statuschip lässt sich versehentlich mehrfach
+// antippen (z.B. hin- und herwechseln beim Testen), eine Bewertungsmail soll
+// der Kunde aber nur einmal je Abnahme bekommen.
+//
+// Bewusst KEIN Jahr-später-Erinnerungsmechanismus hier — dafür gibt es noch
+// keinen Cron/Scheduled-Mechanismus im Worker, und das wäre eigener Aufwand.
+// ----------------------------------------------------------------------
+export async function bewertungAnfordern(env, daten, kontext = {}) {
+  if (!kontext.auth) {
+    throw fehler("NICHT_ANGEMELDET", "Bitte melden Sie sich an.", {}, 401);
+  }
+  const { baustelleId } = daten || {};
+  if (typeof baustelleId !== "string" || !baustelleId || baustelleId.includes("/")) {
+    throw fehler("BAUSTELLE_UNGUELTIG", "Diese Baustelle wurde nicht gefunden.");
+  }
+  const baustelle = await dokumentLesen(env, `baustellen/${baustelleId}`);
+  if (!baustelle || baustelle.handwerkerId !== kontext.auth.uid) {
+    throw fehler("KEIN_ZUGRIFF", "Diese Baustelle gehört nicht zu Ihrem Konto.", {}, 403);
+  }
+
+  const empfaenger = String(baustelle.kundeEmail || "").trim().toLowerCase();
+  if (!empfaenger.includes("@")) {
+    throw fehler(
+      "MAIL_UNGUELTIG",
+      "Für diese Baustelle ist keine gültige Kunden-E-Mail hinterlegt. Bitte zuerst unter „Kunde verknüpfen“ eintragen."
+    );
+  }
+
+  const bewertungsLink = FIRMA.googleBewertungsLink;
+  if (!bewertungsLink || bewertungsLink.startsWith("PLATZHALTER")) {
+    throw fehler(
+      "BEWERTUNGSLINK_FEHLT",
+      "Der Google-Bewertungslink ist noch nicht eingerichtet (FIRMA.googleBewertungsLink in config.js)."
+    );
+  }
+
+  await bewertungAnfragen(env, {
+    an: empfaenger,
+    kundeName: baustelle.kundeName || "",
+    bewertungsLink,
+  });
+
+  const jetzt = new Date();
+  await dokumentAktualisieren(env, `baustellen/${baustelleId}`, { bewertungAngefragtAm: jetzt });
+  await protokollieren(env, baustelleId, {
+    aktion: "bewertung_angefragt",
+    akteur: "handwerker",
+    akteurId: kontext.auth.uid,
+    empfaenger,
+  });
+
+  return { gesendetAn: empfaenger, angefragtAm: jetzt.toISOString() };
+}
+
 export default {
   PortalFehler,
   angebotAbdruck,
@@ -780,5 +844,6 @@ export default {
   portalAblehnen,
   portalRueckfrage,
   angebotsLinkVersenden,
+  bewertungAnfordern,
   katalogEinrichten,
 };
