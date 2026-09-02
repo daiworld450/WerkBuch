@@ -185,6 +185,45 @@ export async function freigabeBestaetigen(
   });
 }
 
+// Bewertungsanfrage nach der Abnahme (S13). Wird ausgelöst, wenn der
+// Handwerker eine Baustelle als "Abgeschlossen" markiert und im Anschluss
+// die Bewertungsanfrage antriggert (siehe portal.js bewertungAnfordern).
+// Kurzer, freundlicher Text nach demselben Rahmen wie die übrigen Mails —
+// bewusst ohne Druck oder mehrfache Wiederholung des Wunsches.
+export async function bewertungAnfragen(env, { an, kundeName, bewertungsLink }) {
+  const betreff = `Wie war's? Ihre Meinung zählt für uns — ${FIRMA.name}`;
+  const nameSicher = htmlEscape(kundeName || "");
+  const linkSicher = htmlEscape(bewertungsLink);
+  const html = rahmen(
+    "Vielen Dank für Ihr Vertrauen",
+    `<p style="color:rgba(255,255,255,.82);line-height:1.6">
+       Guten Tag ${nameSicher},<br><br>
+       Ihre Baustelle ist abgeschlossen — wir hoffen, Sie sind mit dem
+       Ergebnis zufrieden. Wenn Sie zwei Minuten Zeit haben, würden wir uns
+       sehr über eine kurze Google-Bewertung freuen. Das hilft uns und
+       anderen Kunden bei der Entscheidung.
+     </p>
+     <p style="margin:24px 0">
+       <a href="${linkSicher}" style="display:inline-block;background:#D00000;color:#fff;text-decoration:none;padding:14px 28px;border-radius:500px;font-weight:700">
+         Jetzt bewerten
+       </a>
+     </p>
+     <p style="color:rgba(255,255,255,.6);font-size:13px;line-height:1.6">
+       Vielen Dank für Ihre Zeit — und für den Auftrag.
+     </p>`
+  );
+  const text = `Guten Tag ${kundeName || ""},
+
+Ihre Baustelle ist abgeschlossen. Wir würden uns über eine kurze Google-Bewertung freuen:
+${bewertungsLink}
+
+Vielen Dank für Ihre Zeit — und für den Auftrag.
+
+${FIRMA.name} · ${FIRMA.ort}`;
+
+  await senden(env, { an, betreff, html, text });
+}
+
 // Meldung an den Betrieb (nicht an den Kunden). "zeilen" kann Kundeneingaben
 // enthalten (z.B. eine Rückfrage) — deshalb ebenfalls escaped.
 export async function betriebBenachrichtigen(env, { an, titel, zeilen }) {
@@ -197,4 +236,10 @@ export async function betriebBenachrichtigen(env, { an, titel, zeilen }) {
   await senden(env, { an, betreff: `WerkBuch: ${titel}`, html, text: zeilen.join("\n") });
 }
 
-export default { angebotsLinkSenden, codeSenden, freigabeBestaetigen, betriebBenachrichtigen };
+export default {
+  angebotsLinkSenden,
+  codeSenden,
+  freigabeBestaetigen,
+  bewertungAnfragen,
+  betriebBenachrichtigen,
+};
