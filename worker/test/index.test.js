@@ -38,6 +38,7 @@ before(async () => {
     portalAblehnen: mock.fn(async () => ({ ok: true })),
     portalRueckfrage: mock.fn(async () => ({ ok: true })),
     angebotsLinkVersenden: mock.fn(async (env, daten, kontext) => ({ ok: true, uid: kontext.auth?.uid })),
+    bewertungAnfordern: mock.fn(async (env, daten, kontext) => ({ ok: true, uid: kontext.auth?.uid })),
     katalogEinrichten: mock.fn(async () => ({ ok: true })),
     PortalFehler,
   };
@@ -157,6 +158,29 @@ test("Geschützter Endpunkt mit gültigem Token reicht kontext.auth an portal.js
   assert.equal(daten.uid, "hw-1");
   assert.equal(authMock.idTokenPruefen.mock.calls.length, 1);
   assert.equal(authMock.idTokenPruefen.mock.calls[0].arguments[0], "echtes-token");
+});
+
+test("/handwerker/bewertung-anfordern leitet an bewertungAnfordern weiter (Anmeldung erforderlich)", async () => {
+  const antwort = await worker.fetch(
+    anfrage("/handwerker/bewertung-anfordern", {
+      koerper: { baustelleId: "b-1" },
+      kopf: { Authorization: "Bearer echtes-token" },
+    }),
+    ENV
+  );
+  assert.equal(antwort.status, 200);
+  const daten = await antwort.json();
+  assert.equal(daten.uid, "hw-1");
+  assert.equal(portalMocks.bewertungAnfordern.mock.calls.length, 1);
+});
+
+test("/handwerker/bewertung-anfordern ohne Authorization-Header wird mit 401 abgewiesen", async () => {
+  const antwort = await worker.fetch(
+    anfrage("/handwerker/bewertung-anfordern", { koerper: { baustelleId: "b-1" } }),
+    ENV
+  );
+  assert.equal(antwort.status, 401);
+  assert.equal(portalMocks.bewertungAnfordern.mock.calls.length, 0);
 });
 
 // -------------------------------------------------------------------- CORS
