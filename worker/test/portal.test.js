@@ -14,6 +14,7 @@
 
 import test, { mock, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { FIRMA } from "../src/config.js";
 
 // ---------------------------------------------------------- Fake-Firestore
 
@@ -119,6 +120,7 @@ function neuerMailAufzeichner() {
     angebotsLinkSenden: mock.fn(async (env, daten) => { gesendet.push({ art: "link", daten }); }),
     codeSenden: mock.fn(async (env, daten) => { gesendet.push({ art: "code", daten }); }),
     freigabeBestaetigen: mock.fn(async (env, daten) => { gesendet.push({ art: "freigabe", daten }); }),
+    bewertungAnfragen: mock.fn(async (env, daten) => { gesendet.push({ art: "bewertung", daten }); }),
     betriebBenachrichtigen: mock.fn(async (env, daten) => { gesendet.push({ art: "betrieb", daten }); }),
   };
 }
@@ -605,6 +607,73 @@ test("angebotsLinkVersenden widerruft alte Links und legt genau einen neuen an",
   assert.equal(neueLinks.length, 1);
   assert.equal(neueLinks[0][1].email, "neu@beispiel.de");
   assert.equal(mailAufzeichner.gesendet.filter((m) => m.art === "link").length, 1);
+});
+
+// --------------------------------------------------- Bewertung anfordern
+
+test("bewertungAnfordern ohne Anmeldung wird mit 401 abgewiesen", async () => {
+  await fixturAufsetzen();
+  await assert.rejects(
+    () => portal.bewertungAnfordern({}, { baustelleId: BAUSTELLE_ID }, {}),
+    (e) => e.code === "NICHT_ANGEMELDET" && e.httpStatus === 401
+  );
+});
+
+test("bewertungAnfordern für eine fremde Baustelle wird mit 403 abgewiesen", async () => {
+  await fixturAufsetzen();
+  await assert.rejects(
+    () =>
+      portal.bewertungAnfordern(
+        {},
+        { baustelleId: BAUSTELLE_ID },
+        { auth: { uid: "jemand-anderes" } }
+      ),
+    (e) => e.code === "KEIN_ZUGRIFF" && e.httpStatus === 403
+  );
+});
+
+test("bewertungAnfordern ohne hinterlegte Kunden-E-Mail wird mit MAIL_UNGUELTIG abgewiesen", async () => {
+  await fixturAufsetzen(); // Fixtur setzt keine kundeEmail auf dem Baustellen-Dokument
+  await assert.rejects(
+    () => portal.bewertungAnfordern({}, { baustelleId: BAUSTELLE_ID }, { auth: { uid: "hw-1" } }),
+    (e) => e.code === "MAIL_UNGUELTIG"
+  );
+});
+
+test("bewertungAnfordern ohne eingetragenen Google-Bewertungslink wird mit BEWERTUNGSLINK_FEHLT abgewiesen", async () => {
+  await fixturAufsetzen();
+  await fake.dokumentAktualisieren({}, `baustellen/${BAUSTELLE_ID}`, { kundeEmail: "kunde@beispiel.de" });
+  // config.js liefert an dieser Stelle bewusst den unveränderten Platzhalter
+  // (siehe config.js) — genau das muss der Endpunkt erkennen und ablehnen,
+  // statt eine Mail mit kaputtem Link zu verschicken.
+  assert.ok(FIRMA.googleBewertungsLink.startsWith("PLATZHALTER"));
+  await assert.rejects(
+    () => portal.bewertungAnfordern({}, { baustelleId: BAUSTELLE_ID }, { auth: { uid: "hw-1" } }),
+    (e) => e.code === "BEWERTUNGSLINK_FEHLT"
+  );
+  assert.equal(mailAufzeichner.gesendet.length, 0);
+});
+
+test("bewertungAnfordern verschickt die Mail und merkt sich den Zeitpunkt, sobald ein echter Link eingetragen ist", async () => {
+  await fixturAufsetzen();
+  await fake.dokumentAktualisieren({}, `baustellen/${BAUSTELLE_ID}`, { kundeEmail: "kunde@beispiel.de" });
+
+  const vorher = FIRMA.googleBewertungsLink;
+  FIRMA.googleBewertungsLink = "https://g.page/r/beispiel/review";
+  try {
+    const ergebnis = await portal.bewertungAnfordern(
+      {},
+      { baustelleId: BAUSTELLE_ID },
+      { auth: { uid: "hw-1" } }
+    );
+    assert.equal(ergebnis.gesendetAn, "kunde@beispiel.de");
+    assert.equal(mailAufzeichner.gesendet.filter((m) => m.art === "bewertung").length, 1);
+
+    const baustelleNachher = fake._dokumente.get(`baustellen/${BAUSTELLE_ID}`);
+    assert.ok(baustelleNachher.bewertungAngefragtAm, "Zeitpunkt muss auf der Baustelle vermerkt werden");
+  } finally {
+    FIRMA.googleBewertungsLink = vorher;
+  }
 });
 
 // -------------------------------------------------------- Katalog einrichten
