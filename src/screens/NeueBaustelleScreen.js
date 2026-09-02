@@ -83,6 +83,14 @@ export default function NeueBaustelleScreen({ navigation }) {
         status: "In Planung",
         fortschritt: 0,
         fotoAnzahl: 0,
+        // Einsatzplanung (Kalenderübersicht): Zeitraum wird erst später in der
+        // Baustelle selbst eingetragen, deshalb hier noch leer.
+        geplantStart: null,
+        geplantEnde: null,
+        // Stub für später echte Mitarbeiter-Accounts — die gibt es im System
+        // noch nicht. Bewusst nicht in der UI editierbar, nur als Datenfeld
+        // vorbereitet (siehe BaustelleDetailScreen / Firestore-Regeln).
+        zugewieseneNutzer: [],
         erstelltAm: serverTimestamp(),
       });
 
