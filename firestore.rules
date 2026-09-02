@@ -57,6 +57,19 @@ service cloud.firestore {
     }
 
     // --------------------------------------------------------- baustellen
+    // Enthält u.a. geplantStart/geplantEnde (Einsatzplanung/Kalenderübersicht)
+    // und zugewieseneNutzer (Stub für später echte Mitarbeiter-Accounts, die
+    // es im System noch nicht gibt — aktuell immer ein leeres Array, von
+    // keiner UI beschrieben). Beide fallen unter die allgemeine
+    // update-Regel unten: nur der Handwerker selbst darf sie ändern, die
+    // enge Kunden-Ausnahme deckt ausschließlich kundeId/kundeName ab und
+    // lässt diese Felder unangetastet.
+    //
+    // NICHTS AUSZUROLLEN: Seit dem letzten Hochladen dieser Datei kam hier nur
+    // dieser Kommentar dazu, keine Regel. Die neuen Felder brauchen keine
+    // eigene Regel, und der Einsatzplan liest den Unterordner "termine" über
+    // die allgemeine Sammelregel weiter unten. Solange unter dieser Zeile
+    // keine Regel verändert wird, muss niemand "firebase deploy" anstoßen.
     match /baustellen/{bid} {
       allow read: if angemeldet() &&
         (resource.data.handwerkerId == meineUid() || resource.data.kundeId == meineUid());
