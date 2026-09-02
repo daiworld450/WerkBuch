@@ -51,6 +51,17 @@ export function datumDe(wert) {
   return `${tag}.${monat}.${jahr}`;
 }
 
+// Datum als JJJJ-MM-TT in der Ortszeit des Geräts (für HTML-Datumsfelder).
+// toISOString rechnet nach UTC um und liefert vor 2 Uhr morgens den Vortag.
+export function datumIso(wert) {
+  const d = zuDate(wert);
+  if (!d) return "";
+  const jahr = d.getFullYear();
+  const monat = String(d.getMonth() + 1).padStart(2, "0");
+  const tag = String(d.getDate()).padStart(2, "0");
+  return `${jahr}-${monat}-${tag}`;
+}
+
 // Datum + Uhrzeit, z.B. "24.07.2026, 14:30"
 export function datumZeitDe(wert) {
   const d = zuDate(wert);
@@ -62,4 +73,4 @@ export function datumZeitDe(wert) {
   return `${datumDe(d)}, ${zeit}`;
 }
 
-export default { zahlDe, flaecheDe, euroDe, mengeDe, datumDe, datumZeitDe, zuDate };
+export default { zahlDe, flaecheDe, euroDe, mengeDe, datumDe, datumIso, datumZeitDe, zuDate };
