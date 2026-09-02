@@ -14,6 +14,7 @@ import {
   angebotsLinkSenden,
   codeSenden,
   freigabeBestaetigen,
+  bewertungAnfragen,
   betriebBenachrichtigen,
 } from "../src/mail.js";
 
@@ -110,6 +111,27 @@ test("betriebBenachrichtigen escaped Zeilen (z.B. Kundenrückfrage) im HTML", as
   });
   assert.doesNotMatch(letzteAnfrage.koerper.htmlContent, /<script>/);
   assert.match(letzteAnfrage.koerper.htmlContent, /&lt;script&gt;/);
+});
+
+test("bewertungAnfragen verlinkt den mitgegebenen Bewertungslink und Kundennamen", async () => {
+  await bewertungAnfragen(ENV, {
+    an: "kunde@beispiel.de",
+    kundeName: "Erika Musterfrau",
+    bewertungsLink: "https://g.page/r/beispiel/review",
+  });
+  assert.match(letzteAnfrage.koerper.htmlContent, /Erika Musterfrau/);
+  assert.match(letzteAnfrage.koerper.htmlContent, /https:\/\/g\.page\/r\/beispiel\/review/);
+  assert.match(letzteAnfrage.koerper.textContent, /https:\/\/g\.page\/r\/beispiel\/review/);
+});
+
+test("bewertungAnfragen escaped einen manipulierten Kundennamen im HTML", async () => {
+  await bewertungAnfragen(ENV, {
+    an: "kunde@beispiel.de",
+    kundeName: '<img src=x onerror="alert(1)">',
+    bewertungsLink: "https://g.page/r/beispiel/review",
+  });
+  assert.doesNotMatch(letzteAnfrage.koerper.htmlContent, /<img src=x onerror/);
+  assert.match(letzteAnfrage.koerper.htmlContent, /&lt;img/);
 });
 
 test("Fehlschlag bei Brevo wirft mit HTTP-Status in der Meldung", async () => {
