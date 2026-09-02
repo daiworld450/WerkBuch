@@ -71,6 +71,15 @@ export default function BaustellenListScreen({ navigation }) {
             style={{ marginTop: 8 }}
           />
         </View>
+        {istHandwerker ? (
+          <Pressable
+            onPress={() => navigation.navigate("Einsatzplan")}
+            hitSlop={10}
+            style={{ marginRight: 18 }}
+          >
+            <Text style={styles.einsatzplanLink}>📅 Einsatzplan</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={abmelden} hitSlop={10}>
           <Text style={styles.abmelden}>Abmelden</Text>
         </Pressable>
@@ -168,6 +177,12 @@ const styles = StyleSheet.create({
     ...schrift.bodyMed,
     fontSize: 14,
     color: farben.textMatt,
+    paddingTop: 6,
+  },
+  einsatzplanLink: {
+    ...schrift.bodyMed,
+    fontSize: 14,
+    color: farben.textWeich,
     paddingTop: 6,
   },
   bName: {
