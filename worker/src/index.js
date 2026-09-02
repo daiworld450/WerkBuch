@@ -15,6 +15,7 @@ import {
   portalAblehnen,
   portalRueckfrage,
   angebotsLinkVersenden,
+  bewertungAnfordern,
   katalogEinrichten,
   PortalFehler,
 } from "./portal.js";
@@ -31,6 +32,7 @@ const ENDPUNKTE = {
   "/portal/ablehnen": { fn: portalAblehnen },
   "/portal/rueckfrage": { fn: portalRueckfrage },
   "/handwerker/link-versenden": { fn: angebotsLinkVersenden, brauchtAnmeldung: true },
+  "/handwerker/bewertung-anfordern": { fn: bewertungAnfordern, brauchtAnmeldung: true },
   "/handwerker/katalog-einrichten": { fn: katalogEinrichten, brauchtAnmeldung: true },
 };
 
