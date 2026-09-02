@@ -65,6 +65,10 @@ export default function VisualisierungScreen({ route, navigation }) {
   const [fotoBase64, setFotoBase64] = useState(null);
 
   const [rechnet, setRechnet] = useState(false);
+  // Seit der Umstellung auf den eigenen Rechner dauert ein Entwurf zwei bis
+  // vier Minuten. Ohne Zwischenstand sieht das am Küchentisch des Kunden aus
+  // wie eine hängende App — deshalb wird laufend gesagt, was gerade passiert.
+  const [standText, setStandText] = useState("");
   const [ergebnis, setErgebnis] = useState(null); // { vorher, bilder[] }
   const [ansicht, setAnsicht] = useState(0);      // 0 = vorher, 1..n = Entwürfe
   const [fehler, setFehler] = useState("");
@@ -169,12 +173,24 @@ export default function VisualisierungScreen({ route, navigation }) {
     setFehler("");
     setRechnet(true);
     try {
+      setStandText("Foto wird übertragen …");
       const daten = await entwurfErstellen({
         bildBase64: fotoBase64,
         stil,
         gewerk: "bad",
         wuensche: wuensche.trim(),
         budget,
+        beiStand: (stand) => {
+          if (stand.zustand === "wartet") {
+            setStandText(
+              stand.position > 1
+                ? `In der Warteschlange, Platz ${stand.position}`
+                : "Gleich geht es los …"
+            );
+          } else if (stand.zustand === "in_arbeit") {
+            setStandText("Die Entwürfe werden gerechnet — das dauert zwei bis vier Minuten.");
+          }
+        },
       });
       setErgebnis(daten);
       setAnsicht(1);
@@ -182,6 +198,7 @@ export default function VisualisierungScreen({ route, navigation }) {
       setFehler(fehlerText(e));
     } finally {
       setRechnet(false);
+      setStandText("");
     }
   }
 
@@ -217,7 +234,7 @@ export default function VisualisierungScreen({ route, navigation }) {
 
   if (rechnet) {
     return (
-      <Ladeanzeige text="Ihr Entwurf wird gerechnet — das dauert etwa eine Minute …" />
+      <Ladeanzeige text={standText || "Ihr Entwurf wird gerechnet …"} />
     );
   }
 
