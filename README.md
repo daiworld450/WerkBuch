@@ -245,9 +245,21 @@ Für iOS benötigen Sie:
    - **Material**: Position anlegen, bei Fliesen „Menge aus Flächenberechnung übernehmen".
    - **Termine**: Datum wählen, Termin anlegen, abhaken.
    - **Angebot**: PDF hochladen → Status wird automatisch „Gesendet".
+   - **Einsatzplanung**: geplanten Start und geplantes Ende setzen (Grundlage
+     für den Einsatzplan).
 6. Abmelden, als **Kunde** anmelden → dieselbe Baustelle erscheint. Der Kunde sieht
    alles (Fotos, Maße, Material, Termine, Angebot), kann aber **nichts ändern**,
    **nichts herunterladen** und beim Angebot nur **Annehmen/Ablehnen**.
+7. Zurück zur Baustellenliste (als **Handwerker**) → **„📅 Einsatzplan"**:
+   Wochenansicht über alle eigenen Baustellen, mit den Zählern „aktiv heute",
+   „diese Woche" und „ohne Termin", Pfeilen für die Woche davor/danach und
+   einem Balken je Baustelle. Nur der Handwerker sieht diesen Bildschirm.
+
+> **Einsatzplan und Termine:** Fehlt bei einer Baustelle der geplante Start,
+> leitet der Einsatzplan den Zeitraum aus den bereits angelegten **Terminen** ab
+> (frühester bis spätester Termin) und kennzeichnet ihn mit „aus den Terminen".
+> Derselbe Zeitraum muss dadurch nur einmal gepflegt werden. Steht ein geplanter
+> Start, gilt unverändert allein `geplantStart`/`geplantEnde`.
 
 ---
 
@@ -286,6 +298,7 @@ BerisaBauApp/
     context/AuthContext.js   Anmeldung/Registrierung/Rolle
     navigation/index.js      Stack-Navigation
     components/              Karte, Knopf, Feld, Pill, Fortschritt, Logo, …
-    screens/                 Login, Register, Liste, Detail, Fotos, Maße, …
+    screens/                 Login, Register, Liste, Detail, Fotos, Maße,
+                             Termine, Angebot, Einsatzplan, …
     util/                    berechnung.js, format.js, fehler.js, baustelle.js
 ```
