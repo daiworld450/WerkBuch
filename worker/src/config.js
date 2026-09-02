@@ -200,6 +200,14 @@ export const FIRMA = {
   ort: "Mülheim an der Ruhr",
   absenderMail: "berisabau@gmail.com",
   portalBasis: "https://daiworld450.github.io/WerkBuch",
+  // PLATZHALTER — hier den echten Google-Bewertungslink für das
+  // Google-Business-Profil "Berisa Bau" eintragen (Format i.d.R.
+  // https://g.page/r/XXXXXXXXXXXXXXXX/review oder ein Link aus dem
+  // Business-Profil-Manager unter "Mehr Rezensionen erhalten"). Ohne
+  // eingetragenen Link würde die Bewertungs-E-Mail (S13, siehe mail.js
+  // bewertungAnfragen) einen kaputten Link verschicken — deshalb prüft
+  // bewertungAnfordern() in portal.js diesen Platzhalter vorher ab.
+  googleBewertungsLink: "PLATZHALTER_GOOGLE_BEWERTUNGSLINK",
 };
 
 export default {
