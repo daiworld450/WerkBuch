@@ -71,8 +71,13 @@ const EINSTIEGE = [
 ];
 
 export default function BaustelleDetailScreen({ route, navigation }) {
-  const { baustelleId } = route.params;
+  const { baustelleId } = route.params || {};
   const { istHandwerker } = useAuth();
+
+  useEffect(() => {
+    if (!baustelleId) navigation.replace("Baustellen");
+  }, [baustelleId]);
+  if (!baustelleId) return null;
   const [baustelle, setBaustelle] = useState(null);
   const [laedt, setLaedt] = useState(true);
   const [weg, setWeg] = useState(false);

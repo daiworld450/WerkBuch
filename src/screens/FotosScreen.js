@@ -41,8 +41,13 @@ import { PHASEN, aktualisiereZaehler } from "../util/baustelle";
 import fehlerText from "../util/fehler";
 
 export default function FotosScreen({ route, navigation }) {
-  const { baustelleId } = route.params;
+  const { baustelleId } = route.params || {};
   const { profil, istHandwerker } = useAuth();
+
+  useEffect(() => {
+    if (!baustelleId) navigation.replace("Baustellen");
+  }, [baustelleId]);
+  if (!baustelleId) return null;
   const [phase, setPhase] = useState(PHASEN[0]);
   const [fotos, setFotos] = useState([]);
   const [notiz, setNotiz] = useState("");

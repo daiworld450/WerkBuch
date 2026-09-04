@@ -39,9 +39,16 @@ import fehlerText from "../util/fehler";
 
 const EINHEITEN = ["m", "cm", "m²"];
 
-export default function MasseScreen({ route }) {
-  const { baustelleId } = route.params;
+export default function MasseScreen({ route, navigation }) {
+  const { baustelleId } = route.params || {};
   const { istHandwerker } = useAuth();
+
+  // Ohne baustelleId (z.B. direktes Neuladen der Seite — die Baustellen-ID
+  // steht nicht in der Adresszeile) fehlt die Grundlage für diesen Screen.
+  useEffect(() => {
+    if (!baustelleId) navigation.replace("Baustellen");
+  }, [baustelleId]);
+  if (!baustelleId) return null;
 
   const [raum, setRaum] = useState({ laenge: "", breite: "", hoehe: "", tuerenFenster: "" });
   const [einzel, setEinzel] = useState([]);

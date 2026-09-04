@@ -53,8 +53,13 @@ const BUDGETS = [
 ];
 
 export default function VisualisierungScreen({ route, navigation }) {
-  const { baustelleId } = route.params;
+  const { baustelleId } = route.params || {};
   const { istHandwerker } = useAuth();
+
+  useEffect(() => {
+    if (!baustelleId) navigation.replace("Baustellen");
+  }, [baustelleId]);
+  if (!baustelleId) return null;
 
   const [stile, setStile] = useState([]);
   const [stil, setStil] = useState(null);

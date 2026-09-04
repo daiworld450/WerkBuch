@@ -53,9 +53,14 @@ const LEER = {
   bemerkung: "",
 };
 
-export default function MaterialScreen({ route }) {
-  const { baustelleId } = route.params;
+export default function MaterialScreen({ route, navigation }) {
+  const { baustelleId } = route.params || {};
   const { istHandwerker } = useAuth();
+
+  useEffect(() => {
+    if (!baustelleId) navigation.replace("Baustellen");
+  }, [baustelleId]);
+  if (!baustelleId) return null;
 
   const [liste, setListe] = useState([]);
   const [laedt, setLaedt] = useState(true);

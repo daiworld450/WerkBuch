@@ -57,16 +57,23 @@ const kopfOptionen = {
   contentStyle: { backgroundColor: farben.bg },
 };
 
-// Adressen im Browser. Der Kundenlink /angebot/<Token> muss den Kunden direkt
-// ins Portal führen — ohne Anmeldung, ohne Umweg über den Login-Bildschirm.
+// Adressen im Browser. GitHub Pages liefert diese App unter
+// https://daiworld450.github.io/WerkBuch/ aus — React Navigation kennt diesen
+// Unterordner nicht von selbst und würde sonst z.B. "/anmelden" statt
+// "/WerkBuch/anmelden" in die Adressleiste schreiben. Ein Neuladen oder ein
+// Zurück/Vor im Browser würde dann auf eine echte GitHub-404-Seite treffen,
+// weil es unter der Domain ohne "/WerkBuch" keine Seite gibt. Deshalb bekommt
+// jeder Pfad das Präfix fest mitgegeben (muss zum "--base=" in
+// tools/patch-index.js passen). Der Kundenlink /angebot/<Token> läuft separat
+// über portalTokenAusAdresse() unten und ist davon unabhängig.
+const BASISPFAD = "WerkBuch";
 const linking = {
   prefixes: [],
   config: {
     screens: {
-      Portal: "angebot/:token",
-      Login: "anmelden",
-      Register: "registrieren",
-      Baustellen: "baustellen",
+      Login: `${BASISPFAD}/anmelden`,
+      Register: `${BASISPFAD}/registrieren`,
+      Baustellen: `${BASISPFAD}/baustellen`,
     },
   },
 };

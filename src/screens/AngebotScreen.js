@@ -123,9 +123,14 @@ function PdfSeiten({ pdfUrl, seiten = 1, breite }) {
   );
 }
 
-export default function AngebotScreen({ route }) {
-  const { baustelleId, kundeEmail, kundeName } = route.params;
+export default function AngebotScreen({ route, navigation }) {
+  const { baustelleId, kundeEmail, kundeName } = route.params || {};
   const { profil, istHandwerker } = useAuth();
+
+  useEffect(() => {
+    if (!baustelleId) navigation.replace("Baustellen");
+  }, [baustelleId]);
+  if (!baustelleId) return null;
   const { width: fensterBreite } = useWindowDimensions();
 
   const [angebot, setAngebot] = useState(null);

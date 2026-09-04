@@ -4,7 +4,7 @@
 // Kopierschutz aktiv, solange sichtbar.
 // ---------------------------------------------------------------------------
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -28,8 +28,13 @@ import { aktualisiereZaehler } from "../util/baustelle";
 import fehlerText from "../util/fehler";
 
 export default function FotoViewerScreen({ route, navigation }) {
-  const { baustelleId, fotos: fotosParam, start = 0 } = route.params;
+  const { baustelleId, fotos: fotosParam, start = 0 } = route.params || {};
   const { istHandwerker } = useAuth();
+
+  useEffect(() => {
+    if (!baustelleId) navigation.replace("Baustellen");
+  }, [baustelleId]);
+  if (!baustelleId) return null;
   const { width, height } = useWindowDimensions();
 
   const [fotos, setFotos] = useState(fotosParam || []);

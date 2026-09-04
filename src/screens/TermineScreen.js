@@ -44,9 +44,14 @@ import Ladeanzeige from "../components/Ladeanzeige";
 import { datumDe, datumIso, zuDate } from "../util/format";
 import fehlerText from "../util/fehler";
 
-export default function TermineScreen({ route }) {
-  const { baustelleId } = route.params;
+export default function TermineScreen({ route, navigation }) {
+  const { baustelleId } = route.params || {};
   const { istHandwerker } = useAuth();
+
+  useEffect(() => {
+    if (!baustelleId) navigation.replace("Baustellen");
+  }, [baustelleId]);
+  if (!baustelleId) return null;
 
   const [termine, setTermine] = useState([]);
   const [laedt, setLaedt] = useState(true);
