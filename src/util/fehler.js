@@ -15,6 +15,8 @@ const KARTE = {
     "Keine Verbindung zum Server. Bitte prüfen Sie Ihre Internetverbindung.",
   "auth/too-many-requests":
     "Zu viele Versuche. Bitte warten Sie einen Moment und versuchen Sie es erneut.",
+  "auth/unauthorized-domain":
+    "Diese Adresse ist bei der Anmeldung noch nicht freigeschaltet. Bitte den Betreiber informieren.",
   "permission-denied":
     "Keine Berechtigung für diese Aktion.",
   "unavailable":
