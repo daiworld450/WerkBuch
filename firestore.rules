@@ -13,12 +13,32 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/baustellen/$(bid)).data.kundeId == meineUid();
     }
 
+    // Ist der Angemeldete dieser Baustelle als Mitarbeiter zugewiesen?
+    //
+    // Die Zuweisung steht als Liste von uids im Feld zugewieseneNutzer auf
+    // dem Baustellen-Dokument; geschrieben wird sie ausschließlich vom
+    // Inhaber (siehe update-Regel für baustellen). Der Standardwert []
+    // deckt die alten Baustellen ab, auf denen das Feld noch gar nicht
+    // existiert — ohne ihn würde die Regel dort mit einem Fehler abbrechen
+    // statt schlicht "nein" zu sagen.
+    function istZugewiesen(bid) {
+      return meineUid() in
+        get(/databases/$(database)/documents/baustellen/$(bid)).data.get('zugewieseneNutzer', []);
+    }
+
     // Unterordner einer Baustelle, die ihre EIGENE, engere Regel mitbringen.
     // Sie werden weiter unten von der allgemeinen Sammelregel ausgenommen —
     // an einer Stelle gepflegt, damit read und write nicht auseinanderlaufen.
+    //
+    // "material", "kosten" und "stunden" kamen mit der Nachkalkulation dazu:
+    // material und kosten enthalten Preise und müssen dem zugewiesenen
+    // Mitarbeiter verborgen bleiben, stunden erlaubt ihm umgekehrt mehr als
+    // die Sammelregel (eigene Einträge schreiben). Fehlt hier ein Eintrag,
+    // hebt die weite Sammelregel die engere Regel wieder auf.
     function eigeneRegeln() {
       return ['angebot', 'freigaben', 'protokoll', 'guthaben',
-              'zulagenBestellungen', 'nachrichten', 'dokumente'];
+              'zulagenBestellungen', 'nachrichten', 'dokumente',
+              'material', 'kosten', 'stunden'];
     }
 
     function istHandwerker() {
@@ -49,8 +69,10 @@ service cloud.firestore {
       allow read: if angemeldet();
       allow create: if angemeldet() && uid == meineUid();
       // "rolle" ist nach dem Anlegen unveränderlich — sonst könnte sich ein
-      // bereits bestehendes Kundenkonto nachträglich selbst zum Handwerker
-      // machen. Alle anderen Felder bleiben frei änderbar.
+      // bereits bestehendes Konto nachträglich selbst zum Handwerker machen.
+      // Das gilt jetzt auch für die dritte Rolle "mitarbeiter": Wer einmal
+      // als Mitarbeiter angelegt wurde, kann sich nicht selbst zum Inhaber
+      // befördern. Alle anderen Felder bleiben frei änderbar.
       allow update: if angemeldet() && uid == meineUid() &&
         request.resource.data.rolle == resource.data.rolle;
       allow delete: if angemeldet() && uid == meineUid();
@@ -62,6 +84,14 @@ service cloud.firestore {
     // EINER Abfrage (where handwerkerId == uid), unabhängig davon, ob eine
     // Baustelle verknüpft ist. Die optionale baustelleId ist reine
     // Anzeige-Information und gewährt keinerlei zusätzlichen Zugriff.
+    //
+    // BEKANNTE GRENZE: Der Mitarbeiter sieht diese Termine NICHT — sie sind
+    // fest an handwerkerId gebunden, und eine Baustellen-Zuweisung ändert
+    // daran nichts. Im Kalender sieht er nur die Zeiträume seiner
+    // Baustellen. Bewusst so gelassen: Der Kalender enthält auch private
+    // und Büro-Termine des Inhabers. Wer das ändern will, braucht ein
+    // eigenes Feld auf dem Termin (etwa sichtbarFuer[]) statt einer
+    // Aufweichung dieser Regel.
     match /termine/{terminId} {
       allow read: if angemeldet() && resource.data.handwerkerId == meineUid();
       allow create: if angemeldet() && request.resource.data.handwerkerId == meineUid();
@@ -69,17 +99,29 @@ service cloud.firestore {
     }
 
     // --------------------------------------------------------- baustellen
-    // Enthält u.a. geplantStart/geplantEnde (Einsatzplanung/Kalenderübersicht)
-    // und zugewieseneNutzer (Stub für später echte Mitarbeiter-Accounts, die
-    // es im System noch nicht gibt — aktuell immer ein leeres Array, von
-    // keiner UI beschrieben). Beide fallen unter die allgemeine
-    // update-Regel unten: nur der Handwerker selbst darf sie ändern.
+    // Enthält u.a. geplantStart/geplantEnde (Einsatzplanung/Kalenderübersicht),
+    // umsatz/budget (Grundlage der Nachkalkulation) und zugewieseneNutzer:
+    // die Liste der Mitarbeiter-uids, die diese Baustelle sehen dürfen.
+    // Beschrieben wird sie im Abschnitt "Wer arbeitet hier" des
+    // Baustellen-Bildschirms und fällt unter die update-Regel unten — nur
+    // der Handwerker selbst darf sie ändern.
     //
     // Kein Kunden-Konto mehr: kundeName/kundeTelefon sind reine
     // Kontakt-Information auf der Baustelle, kein eigener Zugriff darüber.
     match /baustellen/{bid} {
-      allow read: if angemeldet() && resource.data.handwerkerId == meineUid();
+      // Lesen darf jetzt auch, wer der Baustelle als Mitarbeiter zugewiesen
+      // ist. Hier wird bewusst NICHT istZugewiesen(bid) benutzt: bei einer
+      // Abfrage (where zugewieseneNutzer array-contains uid) liegt das
+      // Dokument bereits als resource.data vor — ein zusätzliches get()
+      // wäre ein vermeidbarer Lesevorgang pro Treffer.
+      allow read: if angemeldet() && (
+        resource.data.handwerkerId == meineUid() ||
+        meineUid() in resource.data.get('zugewieseneNutzer', [])
+      );
       allow create: if angemeldet() && request.resource.data.handwerkerId == meineUid();
+      // Ändern und Löschen bleibt AUSSCHLIESSLICH beim Inhaber. Der
+      // Mitarbeiter darf weder Status, Umsatz, Budget noch die Zuweisung
+      // selbst anfassen — sonst könnte er sich auf jede Baustelle setzen.
       allow update: if angemeldet() && resource.data.handwerkerId == meineUid();
       allow delete: if angemeldet() && resource.data.handwerkerId == meineUid();
 
@@ -93,6 +135,54 @@ service cloud.firestore {
       // nur für den Handwerker.
       match /dokumente/{dokId} {
         allow read, write: if angemeldet() && istHandwerkerVon(bid);
+      }
+
+      // ------------------------------------------------ Nachkalkulation
+      // Material enthält Einkaufspreise. Bis zur Mitarbeiter-Stufe lief es
+      // über die Sammelregel ganz unten — die gibt einem zugewiesenen
+      // Mitarbeiter jetzt aber Lesezugriff. Deshalb hier eine eigene, enge
+      // Regel (und der Eintrag in eigeneRegeln()): Preise sind Sache des
+      // Inhabers.
+      match /material/{matId} {
+        allow read, write: if angemeldet() && istHandwerkerVon(bid);
+      }
+
+      // Sonstige Kosten (Fahrt, Werkzeug, Fremdleistung). Reine
+      // Betriebszahlen — der Mitarbeiter sieht sie nicht einmal lesend.
+      match /kosten/{kostenId} {
+        allow read, write: if angemeldet() && istHandwerkerVon(bid);
+      }
+
+      // Arbeitsstunden. Die einzige Sammlung, in die ein Mitarbeiter
+      // schreiben darf — und dort ausschließlich EIGENE Einträge.
+      //
+      // erstelltVon ist der Anker dafür. Beim Anlegen muss es die eigene uid
+      // sein, beim Ändern muss der BESTEHENDE Eintrag ihm gehören UND er
+      // muss ihm hinterher noch gehören — ohne die zweite Prüfung könnte er
+      // einen eigenen Eintrag auf einen Kollegen umschreiben und ihn danach
+      // nicht mehr korrigieren, oder umgekehrt fremde Einträge übernehmen.
+      //
+      // Der eingefrorene stundensatzKosten wird hier NICHT geprüft: er ist
+      // eine Kostengröße des Betriebs, und wer Stunden schreiben darf, kann
+      // die Kalkulation ohnehin über die Stundenzahl beeinflussen. Die
+      // Kontrolle darüber liegt beim Inhaber, der jeden Eintrag sieht.
+      match /stunden/{stundenId} {
+        allow read: if angemeldet() &&
+          (istHandwerkerVon(bid) || istZugewiesen(bid));
+        allow create: if angemeldet() && (
+          istHandwerkerVon(bid) ||
+          (istZugewiesen(bid) && request.resource.data.erstelltVon == meineUid())
+        );
+        allow update: if angemeldet() && (
+          istHandwerkerVon(bid) ||
+          (istZugewiesen(bid) &&
+           resource.data.erstelltVon == meineUid() &&
+           request.resource.data.erstelltVon == meineUid())
+        );
+        allow delete: if angemeldet() && (
+          istHandwerkerVon(bid) ||
+          (istZugewiesen(bid) && resource.data.erstelltVon == meineUid())
+        );
       }
 
       // ------------------------------------------------ Nachweis-Sammlungen
@@ -137,8 +227,12 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Alle übrigen Unterordner (fotos, masse, material, termine, raum):
-      // lesen für Handwerker + Kunde, schreiben nur Handwerker.
+      // Alle übrigen Unterordner (fotos, masse, raum):
+      // lesen und schreiben für Handwerker und zugewiesene Mitarbeiter.
+      //
+      // Der Mitarbeiter soll Fotos hochladen und Maße erfassen können — das
+      // ist genau der Zweck seines Zugangs. Material, kosten und stunden
+      // fallen NICHT mehr hierunter, sie stehen oben in eigeneRegeln().
       //
       // ACHTUNG: Firestore verknüpft alle passenden Regeln mit ODER. Diese
       // Sammelregel greift deshalb AUCH auf die oben genannten Sammlungen —
@@ -151,11 +245,50 @@ service cloud.firestore {
       // hier eintragen — sonst greift wieder diese weite Regel.
       match /{unterordner}/{docId} {
         allow read: if angemeldet() &&
-          (istHandwerkerVon(bid) || istKundeVon(bid)) &&
+          (istHandwerkerVon(bid) || istKundeVon(bid) || istZugewiesen(bid)) &&
           !(unterordner in eigeneRegeln());
-        allow write: if angemeldet() && istHandwerkerVon(bid) &&
+        allow write: if angemeldet() &&
+          (istHandwerkerVon(bid) || istZugewiesen(bid)) &&
           !(unterordner in eigeneRegeln());
       }
+    }
+
+    // ----------------------------------------------------------- personen
+    // Wer im Betrieb auf Baustellen arbeitet, mit seinem internen
+    // Stundensatz. Top-level, weil die Personen baustellenübergreifend
+    // gelten und die Registrierung sie ohne Baustellenbezug finden muss.
+    //
+    // read für jeden Angemeldeten: Bei der Registrierung muss das frisch
+    // angelegte Konto prüfen können, ob der Inhaber für seine E-Mail einen
+    // Personen-Eintrag hinterlegt hat — erst daraus entsteht die Rolle
+    // "mitarbeiter". Zu diesem Zeitpunkt gibt es noch kein users-Dokument,
+    // an dem sich etwas Engeres festmachen ließe.
+    //
+    // Die Sammlung enthält deshalb bewusst NUR Name, Stundensatz, E-Mail und
+    // uid — keine Bankdaten, keine Adressen. Wer sie liest, erfährt, wer im
+    // Betrieb arbeitet und was die Stunde kostet. Das ist der Preis dafür,
+    // dass die Konto-Verknüpfung ohne Mailserver und ohne Cloud Function
+    // auskommt.
+    match /personen/{personId} {
+      allow read: if angemeldet();
+      allow create: if angemeldet() &&
+        request.resource.data.handwerkerId == meineUid();
+      allow delete: if angemeldet() && resource.data.handwerkerId == meineUid();
+
+      // Zwei erlaubte Schreibwege:
+      //   1. Der Inhaber ändert seine eigene Person.
+      //   2. SELBSTVERKNÜPFUNG bei der Registrierung: Wer sich mit genau der
+      //      hinterlegten E-Mail anmeldet, trägt seine uid ein — und sonst
+      //      NICHTS. hasOnly(['uid']) verhindert, dass er sich dabei den
+      //      Stundensatz, den Namen oder den Betrieb umschreibt; die
+      //      E-Mail-Prüfung läuft über request.auth.token.email aus dem von
+      //      Google signierten Token, nicht über ein Firestore-Feld.
+      allow update: if angemeldet() && (
+        resource.data.handwerkerId == meineUid() ||
+        (resource.data.email == request.auth.token.email &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid']) &&
+         request.resource.data.uid == meineUid())
+      );
     }
 
     // ------------------------------------------------------ zulagenKatalog

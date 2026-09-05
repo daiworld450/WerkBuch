@@ -12,6 +12,13 @@
 //
 // Beide Abfragen laufen über where("handwerkerId","==",uid); alles Weitere
 // (Zeitraum, Sortierung) geschieht clientseitig — kein Firestore-Index nötig.
+//
+// MITARBEITER-SICHT: Er sieht ausschließlich die Zeiträume der ihm
+// zugewiesenen Baustellen (Abfrage über zugewieseneNutzer array-contains).
+// Freie Termine bleiben ihm verborgen — die Sammlung "termine" ist über
+// handwerkerId fest an den Inhaber gebunden, eine Mitarbeiter-Abfrage würde
+// die Firestore-Regel verletzen. Anlegen und Bearbeiten von Terminen ist
+// deshalb ebenfalls dem Inhaber vorbehalten.
 // ---------------------------------------------------------------------------
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -64,7 +71,7 @@ const ANSICHTEN = [
 const ZELLE_BREIT_AB = 92;
 
 export default function KalenderScreen({ navigation }) {
-  const { profil, istHandwerker } = useAuth();
+  const { profil, istHandwerker, istMitarbeiter } = useAuth();
 
   const [baustellen, setBaustellen] = useState([]);
   const [termine, setTermine] = useState([]);
@@ -80,15 +87,20 @@ export default function KalenderScreen({ navigation }) {
   useEffect(() => {
     // Ohne Profil (noch nicht geladen / kein Handwerker) gar nicht erst
     // abfragen — sonst bliebe die Ladeanzeige für immer stehen.
-    if (!profil || !istHandwerker) {
+    if (!profil || (!istHandwerker && !istMitarbeiter)) {
       setBaustellenLaedt(false);
       setTermineLaedt(false);
       return;
     }
-    const q = query(
-      collection(db, "baustellen"),
-      where("handwerkerId", "==", profil.id)
-    );
+    const q = istMitarbeiter
+      ? query(
+          collection(db, "baustellen"),
+          where("zugewieseneNutzer", "array-contains", profil.id)
+        )
+      : query(
+          collection(db, "baustellen"),
+          where("handwerkerId", "==", profil.id)
+        );
     const stop = onSnapshot(
       q,
       (snap) => {
@@ -101,10 +113,16 @@ export default function KalenderScreen({ navigation }) {
       }
     );
     return stop;
-  }, [profil, istHandwerker]);
+  }, [profil, istHandwerker, istMitarbeiter]);
 
   useEffect(() => {
-    if (!profil || !istHandwerker) return;
+    // Termine gibt es nur für den Inhaber. Für den Mitarbeiter die
+    // Ladeanzeige sofort beenden, sonst bliebe sie ewig stehen.
+    if (!profil || !istHandwerker) {
+      setTermine([]);
+      setTermineLaedt(false);
+      return;
+    }
     const q = query(
       collection(db, "termine"),
       where("handwerkerId", "==", profil.id)
@@ -301,13 +319,13 @@ export default function KalenderScreen({ navigation }) {
   }
 
   // --------------------------------------------------------- Anzeige
-  if (!istHandwerker) {
+  if (!istHandwerker && !istMitarbeiter) {
     return (
       <SafeAreaView style={styles.safe} edges={["bottom"]}>
         <Leerzustand
           symbol="📅"
-          titel="Nur für den Handwerker"
-          text="Der Kalender ist dem Betriebsinhaber vorbehalten."
+          titel="Nur für den Betrieb"
+          text="Der Kalender ist dem Betriebsinhaber und seinen Mitarbeitern vorbehalten."
         />
       </SafeAreaView>
     );
@@ -597,9 +615,13 @@ export default function KalenderScreen({ navigation }) {
           <Leerzustand
             symbol="📅"
             titel="Nichts an diesem Tag"
-            text="Legen Sie einen Termin an — er wird für diesen Tag vorbelegt."
-            knopfTitel="+ Neuer Termin"
-            onKnopf={neuerTermin}
+            text={
+              istHandwerker
+                ? "Legen Sie einen Termin an — er wird für diesen Tag vorbelegt."
+                : "An diesem Tag läuft keine Ihrer Baustellen."
+            }
+            knopfTitel={istHandwerker ? "+ Neuer Termin" : undefined}
+            onKnopf={istHandwerker ? neuerTermin : undefined}
           />
         ) : null}
       </>
@@ -662,9 +684,11 @@ export default function KalenderScreen({ navigation }) {
           : tagesAnsicht()}
       </ScrollView>
 
-      <View style={styles.fussLeiste}>
-        <Knopf titel="+ Neuer Termin" onPress={neuerTermin} />
-      </View>
+      {istHandwerker ? (
+        <View style={styles.fussLeiste}>
+          <Knopf titel="+ Neuer Termin" onPress={neuerTermin} />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }

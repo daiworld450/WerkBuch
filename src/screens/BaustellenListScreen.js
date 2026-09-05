@@ -1,7 +1,19 @@
 // ---------------------------------------------------------------------------
 // BaustellenListScreen.js — Startbildschirm nach dem Login.
-// Alle Baustellen mit handwerkerId == uid — es gibt keine Kunden-Sicht mehr.
-// Live über onSnapshot.
+//
+// Zwei Sichten, je nach Rolle:
+//   Inhaber     — alle eigenen Baustellen (where handwerkerId == uid).
+//   Mitarbeiter — nur die ihm zugewiesenen
+//                 (where zugewieseneNutzer array-contains uid).
+//
+// Beides sind Ein-Feld-Abfragen; sortiert wird clientseitig, damit kein
+// zusammengesetzter Firestore-Index nötig ist.
+//
+// Die Kopfzeile ist zugleich der Einstieg in alles, was nicht an EINE
+// Baustelle hängt: Kalender, Auswertung und Personen. Es gibt in dieser App
+// keine Tab-Leiste und keinen Einstellungs-Bildschirm — und da diese Liste
+// der Startbildschirm ist, ist sie die einzige Stelle, die jeder Weg ohnehin
+// passiert. Alle drei sind dem Inhaber vorbehalten.
 // ---------------------------------------------------------------------------
 
 import React, { useEffect, useState } from "react";
@@ -29,14 +41,19 @@ import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
 
 export default function BaustellenListScreen({ navigation }) {
-  const { profil, abmelden } = useAuth();
+  const { profil, abmelden, istHandwerker, istMitarbeiter } = useAuth();
   const [baustellen, setBaustellen] = useState([]);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState("");
 
   useEffect(() => {
     if (!profil) return;
-    const q = query(collection(db, "baustellen"), where("handwerkerId", "==", profil.id));
+    const q = istMitarbeiter
+      ? query(
+          collection(db, "baustellen"),
+          where("zugewieseneNutzer", "array-contains", profil.id)
+        )
+      : query(collection(db, "baustellen"), where("handwerkerId", "==", profil.id));
 
     const stop = onSnapshot(
       q,
@@ -58,25 +75,42 @@ export default function BaustellenListScreen({ navigation }) {
       }
     );
     return stop;
-  }, [profil]);
+  }, [profil, istMitarbeiter]);
 
   function kopf() {
     return (
-      <View style={styles.kopf}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.hallo}>Hallo {profil?.name || ""}</Text>
-          <Pill text="Handwerker" style={{ marginTop: 8 }} />
+      <View style={styles.kopfBereich}>
+        <View style={styles.kopf}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.hallo}>Hallo {profil?.name || ""}</Text>
+            <Pill
+              text={istMitarbeiter ? "Mitarbeiter" : "Handwerker"}
+              style={{ marginTop: 8 }}
+            />
+          </View>
+          <Pressable onPress={abmelden} hitSlop={10}>
+            <Text style={styles.abmelden}>Abmelden</Text>
+          </Pressable>
         </View>
-        <Pressable
-          onPress={() => navigation.navigate("Kalender")}
-          hitSlop={10}
-          style={{ marginRight: 18 }}
-        >
-          <Text style={styles.kalenderLink}>📅 Kalender</Text>
-        </Pressable>
-        <Pressable onPress={abmelden} hitSlop={10}>
-          <Text style={styles.abmelden}>Abmelden</Text>
-        </Pressable>
+
+        {/* Was nicht an EINE Baustelle hängt. Der Kalender zeigt dem
+            Mitarbeiter nur die Zeiträume seiner Baustellen; Auswertung und
+            Personen sind dem Inhaber vorbehalten. */}
+        <View style={styles.linkReihe}>
+          <Pressable onPress={() => navigation.navigate("Kalender")} hitSlop={8}>
+            <Text style={styles.link}>📅 Kalender</Text>
+          </Pressable>
+          {istHandwerker ? (
+            <>
+              <Pressable onPress={() => navigation.navigate("Auswertung")} hitSlop={8}>
+                <Text style={styles.link}>📊 Auswertung</Text>
+              </Pressable>
+              <Pressable onPress={() => navigation.navigate("Personen")} hitSlop={8}>
+                <Text style={styles.link}>👷 Personen</Text>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
       </View>
     );
   }
@@ -122,18 +156,26 @@ export default function BaustellenListScreen({ navigation }) {
           </>
         }
         ListEmptyComponent={
-          <Leerzustand
-            symbol="🏗️"
-            titel="Noch keine Baustelle"
-            text="Legen Sie Ihre erste Baustelle an, um Fotos, Maße und Material zu dokumentieren."
-            knopfTitel="+ Neue Baustelle"
-            onKnopf={() => navigation.navigate("NeueBaustelle")}
-          />
+          istMitarbeiter ? (
+            <Leerzustand
+              symbol="🏗️"
+              titel="Keine Baustelle zugewiesen"
+              text="Sobald Ihnen eine Baustelle zugewiesen wird, erscheint sie hier."
+            />
+          ) : (
+            <Leerzustand
+              symbol="🏗️"
+              titel="Noch keine Baustelle"
+              text="Legen Sie Ihre erste Baustelle an, um Fotos, Maße und Material zu dokumentieren."
+              knopfTitel="+ Neue Baustelle"
+              onKnopf={() => navigation.navigate("NeueBaustelle")}
+            />
+          )
         }
         contentContainerStyle={styles.liste}
       />
 
-      {baustellen.length > 0 ? (
+      {istHandwerker && baustellen.length > 0 ? (
         <View style={styles.fussLeiste}>
           <Knopf
             titel="+ Neue Baustelle"
@@ -148,11 +190,18 @@ export default function BaustellenListScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: farben.bg },
   liste: { padding: 20, paddingBottom: 40 },
+  kopfBereich: { marginBottom: 20 },
   kopf: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 20,
   },
+  linkReihe: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 18,
+    marginTop: 16,
+  },
+  link: { ...schrift.bodyMed, fontSize: 14, color: farben.textWeich },
   hallo: {
     ...schrift.head,
     fontSize: groessen.h1,
@@ -163,12 +212,6 @@ const styles = StyleSheet.create({
     ...schrift.bodyMed,
     fontSize: 14,
     color: farben.textMatt,
-    paddingTop: 6,
-  },
-  kalenderLink: {
-    ...schrift.bodyMed,
-    fontSize: 14,
-    color: farben.textWeich,
     paddingTop: 6,
   },
   bName: {

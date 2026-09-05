@@ -1,6 +1,12 @@
 // ---------------------------------------------------------------------------
-// BaustelleDetailScreen.js — Übersicht einer Baustelle mit fünf Einstiegen.
+// BaustelleDetailScreen.js — Übersicht einer Baustelle mit ihren Einstiegen.
 // Handwerker: Statuswechsel per Chips und Löschen (mit Sicherheitsabfrage).
+//
+// ROLLEN-TRENNUNG: Der Mitarbeiter sieht nur die Kacheln, mit denen er auch
+// arbeiten soll (Fotos, Maße, Stunden). Material, Kosten, Kalkulation,
+// Angebot und Dokumente führen zu Geldbeträgen und bleiben dem Inhaber
+// vorbehalten — die Kacheln fehlen, und die Firestore-Regeln lassen ihn dort
+// auch dann nicht lesen, wenn er den Bildschirm anders erreicht.
 // ---------------------------------------------------------------------------
 
 import React, { useEffect, useState } from "react";
@@ -24,6 +30,8 @@ import {
   getDocs,
   query,
   where,
+  arrayUnion,
+  arrayRemove,
   Timestamp,
 } from "firebase/firestore";
 // Gleicher Datumswähler wie in TermineScreen — nativ per Community-Picker,
@@ -45,7 +53,8 @@ import Statuspunkt from "../components/Statuspunkt";
 import Ladeanzeige from "../components/Ladeanzeige";
 import Leerzustand from "../components/Leerzustand";
 import fehlerText from "../util/fehler";
-import { datumDe, datumIso, zuDate } from "../util/format";
+import { datumDe, datumIso, zuDate, euroDe } from "../util/format";
+import { kalkuliere } from "../util/kalkulation";
 
 const STATUS = ["In Planung", "In Ausführung", "Abgeschlossen"];
 
@@ -68,13 +77,20 @@ const webDatumStil = {
   width: "100%",
 };
 
+// nurInhaber: true = Kachel erscheint für den Mitarbeiter gar nicht.
 const EINSTIEGE = [
   { key: "Fotos", symbol: "📷", titel: "Fotos", text: "Bilder nach Bauphase sortiert" },
-  { key: "Visualisierung", symbol: "🎨", titel: "Entwurf", text: "Foto aufnehmen, fertiges Bad zeigen" },
+  { key: "Visualisierung", symbol: "🎨", titel: "Entwurf", text: "Foto aufnehmen, fertiges Bad zeigen", nurInhaber: true },
   { key: "Masse", symbol: "📐", titel: "Maße & Flächen", text: "Raummaße und automatische Flächenberechnung" },
-  { key: "Material", symbol: "🧱", titel: "Material", text: "Fliesen, Boden, Sanitär" },
-  { key: "Termine", symbol: "📅", titel: "Termine", text: "Zeitplan der Sanierung" },
-  { key: "Dokumente", symbol: "📎", titel: "Dokumente", text: "Beliebige Dateien: Rechnungen, Kalkulationen, Pläne" },
+  { key: "Material", symbol: "🧱", titel: "Material", text: "Fliesen, Boden, Sanitär", nurInhaber: true },
+  { key: "Stunden", symbol: "⏱", titel: "Stunden", text: "Wer wann wie lange gearbeitet hat" },
+  { key: "Kosten", symbol: "🧾", titel: "Kosten", text: "Fahrt, Werkzeug, Fremdleistung", nurInhaber: true },
+  { key: "Kalkulation", symbol: "📊", titel: "Kalkulation", text: "Umsatz, Kosten, Gewinn dieser Baustelle", nurInhaber: true },
+  // Termine liegen in der top-level Sammlung "termine" und sind über
+  // handwerkerId an den Inhaber gebunden — der Mitarbeiter kann sie nicht
+  // lesen, deshalb bekommt er die Kachel auch nicht.
+  { key: "Termine", symbol: "📅", titel: "Termine", text: "Zeitplan der Sanierung", nurInhaber: true },
+  { key: "Dokumente", symbol: "📎", titel: "Dokumente", text: "Beliebige Dateien: Rechnungen, Kalkulationen, Pläne", nurInhaber: true },
 ];
 
 export default function BaustelleDetailScreen({ route, navigation }) {
@@ -100,6 +116,17 @@ export default function BaustelleDetailScreen({ route, navigation }) {
   const [planStartPickerAuf, setPlanStartPickerAuf] = useState(false);
   const [planEndePickerAuf, setPlanEndePickerAuf] = useState(false);
   const [planLaedt, setPlanLaedt] = useState(false);
+
+  // Nachkalkulation für die kompakte Gewinn-Zeile im Kopf. Nur der Inhaber
+  // lädt diese drei Unterordner — der Mitarbeiter darf kosten/material gar
+  // nicht lesen.
+  const [stundenListe, setStundenListe] = useState([]);
+  const [materialListe, setMaterialListe] = useState([]);
+  const [kostenListe, setKostenListe] = useState([]);
+
+  // Personen mit verknüpftem Konto — nur die lassen sich zuweisen.
+  const [personen, setPersonen] = useState([]);
+  const [zuweisungLaedt, setZuweisungLaedt] = useState(false);
 
   useEffect(() => {
     const stop = onSnapshot(
@@ -133,6 +160,64 @@ export default function BaustelleDetailScreen({ route, navigation }) {
     );
     return stop;
   }, [baustelleId]);
+
+  // Zahlen für die Gewinn-Zeile (nur Inhaber).
+  useEffect(() => {
+    if (!istHandwerker) return;
+    const stops = [
+      onSnapshot(
+        collection(db, "baustellen", baustelleId, "stunden"),
+        (s) => setStundenListe(s.docs.map((d) => d.data())),
+        () => setStundenListe([])
+      ),
+      onSnapshot(
+        collection(db, "baustellen", baustelleId, "material"),
+        (s) => setMaterialListe(s.docs.map((d) => d.data())),
+        () => setMaterialListe([])
+      ),
+      onSnapshot(
+        collection(db, "baustellen", baustelleId, "kosten"),
+        (s) => setKostenListe(s.docs.map((d) => d.data())),
+        () => setKostenListe([])
+      ),
+    ];
+    return () => stops.forEach((s) => s());
+  }, [baustelleId, istHandwerker]);
+
+  // Personen des Betriebs für die Zuweisung (nur Inhaber).
+  useEffect(() => {
+    if (!istHandwerker || !profil) return;
+    const stop = onSnapshot(
+      query(collection(db, "personen"), where("handwerkerId", "==", profil.id)),
+      (snap) => {
+        const l = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        l.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        setPersonen(l);
+      },
+      () => setPersonen([])
+    );
+    return stop;
+  }, [istHandwerker, profil?.id]);
+
+  // Zuweisung an-/abwählen. Geschrieben wird das Feld zugewieseneNutzer auf
+  // der Baustelle — ein Array von uids, aus dem die Firestore-Regeln den
+  // Lesezugriff des Mitarbeiters ableiten. arrayUnion/arrayRemove statt
+  // "ganzes Array neu schreiben", damit zwei gleichzeitige Änderungen sich
+  // nicht gegenseitig überschreiben.
+  async function zuweisungUmschalten(person) {
+    if (!person.uid) return;
+    const drin = (baustelle?.zugewieseneNutzer || []).includes(person.uid);
+    setZuweisungLaedt(true);
+    try {
+      await updateDoc(doc(db, "baustellen", baustelleId), {
+        zugewieseneNutzer: drin ? arrayRemove(person.uid) : arrayUnion(person.uid),
+      });
+    } catch (e) {
+      Alert.alert("Fehler", fehlerText(e));
+    } finally {
+      setZuweisungLaedt(false);
+    }
+  }
 
   // Kunde ist nur noch reine Kontakt-Information auf der Baustelle — kein
   // Konto, keine Suche, keine Verknüpfung.
@@ -283,6 +368,18 @@ export default function BaustelleDetailScreen({ route, navigation }) {
 
   if (weg) return <Ladeanzeige text="Baustelle wird gelöscht …" />;
 
+  const erg = istHandwerker
+    ? kalkuliere({
+        umsatz: baustelle.umsatz,
+        budget: baustelle.budget,
+        stunden: stundenListe,
+        material: materialListe,
+        kosten: kostenListe,
+      })
+    : null;
+  const zugewiesen = baustelle.zugewieseneNutzer || [];
+  const mitKonto = personen.filter((p) => !!p.uid);
+
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -317,8 +414,37 @@ export default function BaustelleDetailScreen({ route, navigation }) {
           </Text>
         </View>
 
+        {/* Kompakte Geldzeile — erst sobald eine Auftragssumme hinterlegt ist.
+            Ohne Umsatz gäbe es keinen Gewinn zu zeigen, nur eine irreführende
+            Null. */}
+        {istHandwerker && erg?.kalkuliert ? (
+          <Pressable
+            onPress={() => navigation.navigate("Kalkulation", { baustelleId })}
+            style={({ pressed }) => [styles.geldZeile, pressed && { opacity: 0.85 }]}
+          >
+            <Text
+              style={[
+                styles.geldWert,
+                { color: erg.gewinn >= 0 ? farben.gruen : farben.rotHell },
+              ]}
+            >
+              {euroDe(erg.gewinn)}
+            </Text>
+            <Text style={styles.geldKlein}>
+              Gewinn
+              {erg.marge != null
+                ? ` · Marge ${(erg.marge * 100).toLocaleString("de-DE", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })} %`
+                : ""}
+              {` · Umsatz ${euroDe(erg.umsatz)}`}
+            </Text>
+          </Pressable>
+        ) : null}
+
         {/* Einstiegs-Karten */}
-        {EINSTIEGE.map((e) => (
+        {EINSTIEGE.filter((e) => istHandwerker || !e.nurInhaber).map((e) => (
           <Karte
             key={e.key}
             onPress={() => navigation.navigate(e.key, { baustelleId })}
@@ -333,23 +459,25 @@ export default function BaustelleDetailScreen({ route, navigation }) {
           </Karte>
         ))}
 
-        {/* Angebot */}
-        <Karte
-          onPress={() =>
-            navigation.navigate("Angebot", {
-              baustelleId,
-              kundeName: baustelle?.kundeName || "",
-            })
-          }
-          style={styles.einstieg}
-        >
-          <Text style={styles.eSymbol}>📄</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.eTitel}>Angebot</Text>
-            <Text style={styles.eText}>PDF hochladen</Text>
-          </View>
-          <Text style={styles.ePfeil}>›</Text>
-        </Karte>
+        {/* Angebot — enthält Preise, deshalb nur für den Inhaber. */}
+        {istHandwerker ? (
+          <Karte
+            onPress={() =>
+              navigation.navigate("Angebot", {
+                baustelleId,
+                kundeName: baustelle?.kundeName || "",
+              })
+            }
+            style={styles.einstieg}
+          >
+            <Text style={styles.eSymbol}>📄</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.eTitel}>Angebot</Text>
+              <Text style={styles.eText}>PDF hochladen</Text>
+            </View>
+            <Text style={styles.ePfeil}>›</Text>
+          </Karte>
+        ) : null}
 
         {/* Handwerker-Bereich: Status + Löschen */}
         {istHandwerker ? (
@@ -383,6 +511,37 @@ export default function BaustelleDetailScreen({ route, navigation }) {
                 />
               </>
             ) : null}
+
+            {/* Wer arbeitet hier — steuert, welche Baustelle ein Mitarbeiter
+                überhaupt sieht. Nur Personen MIT verknüpftem Konto lassen
+                sich zuweisen; ohne Konto gäbe es keine uid, die im Array
+                stehen könnte. */}
+            <Text style={[styles.label, { marginTop: 22 }]}>Wer arbeitet hier</Text>
+            {mitKonto.length === 0 ? (
+              <Text style={styles.kundeStatus}>
+                Noch niemand mit eigenem Konto. Legen Sie unter „Personen“ eine
+                Person mit E-Mail an — sobald sie sich in der App mit genau
+                dieser E-Mail registriert, erscheint sie hier.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.kundeStatus}>
+                  Ausgewählte sehen diese Baustelle und tragen ihre Stunden und
+                  Fotos selbst ein. Kosten, Umsatz und Angebot bleiben verborgen.
+                </Text>
+                <View style={styles.chips}>
+                  {mitKonto.map((p) => (
+                    <Pill
+                      key={p.id}
+                      text={p.name}
+                      aktiv={zugewiesen.includes(p.uid)}
+                      onPress={zuweisungLaedt ? undefined : () => zuweisungUmschalten(p)}
+                      style={{ marginRight: 8, marginBottom: 8 }}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
 
             <Text style={[styles.label, { marginTop: 22 }]}>Einsatzplanung</Text>
             <Text style={styles.kundeStatus}>
@@ -528,6 +687,19 @@ const styles = StyleSheet.create({
     minWidth: 46,
     textAlign: "right",
   },
+  geldZeile: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 10,
+    flexWrap: "wrap",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: farben.linie,
+    paddingVertical: 14,
+    marginBottom: 18,
+  },
+  geldWert: { ...schrift.head, fontSize: 24, letterSpacing: 0.5 },
+  geldKlein: { ...schrift.body, fontSize: 13, color: farben.textMatt },
   einstieg: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 12 },
   eSymbol: { fontSize: 26 },
   eTitel: { ...schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5 },

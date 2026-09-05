@@ -29,7 +29,7 @@ import fehlerText from "../util/fehler";
 
 export default function FotoViewerScreen({ route, navigation }) {
   const { baustelleId, fotos: fotosParam, start = 0 } = route.params || {};
-  const { istHandwerker } = useAuth();
+  const { darfBearbeiten } = useAuth();
 
   useEffect(() => {
     if (!baustelleId) navigation.replace("Baustellen");
@@ -123,7 +123,7 @@ export default function FotoViewerScreen({ route, navigation }) {
           {aktuell?.phase ? `${aktuell.phase} · ` : ""}
           {datumDe(aktuell?.erstelltAm)}
         </Text>
-        {istHandwerker && aktuell ? (
+        {darfBearbeiten && aktuell ? (
           <Pressable onPress={loeschenFragen} style={styles.loeschen} hitSlop={8}>
             <Text style={styles.loeschenText}>Foto löschen</Text>
           </Pressable>

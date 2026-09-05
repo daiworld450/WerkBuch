@@ -42,7 +42,7 @@ import fehlerText from "../util/fehler";
 
 export default function FotosScreen({ route, navigation }) {
   const { baustelleId } = route.params || {};
-  const { profil, istHandwerker } = useAuth();
+  const { profil, darfBearbeiten } = useAuth();
 
   useEffect(() => {
     if (!baustelleId) navigation.replace("Baustellen");
@@ -194,7 +194,7 @@ export default function FotosScreen({ route, navigation }) {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Handwerker: Notiz + Hinzufügen */}
-        {istHandwerker ? (
+        {darfBearbeiten ? (
           <View style={styles.addBox}>
             <Feld
               label={`Notiz für Phase „${phase}“ (optional)`}
@@ -219,7 +219,7 @@ export default function FotosScreen({ route, navigation }) {
             symbol="🖼️"
             titel="Noch keine Fotos"
             text={
-              istHandwerker
+              darfBearbeiten
                 ? `Für die Phase „${phase}“ wurde noch kein Foto hinzugefügt.`
                 : `Für die Phase „${phase}“ liegen noch keine Bilder vor.`
             }

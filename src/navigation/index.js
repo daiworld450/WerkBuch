@@ -26,6 +26,11 @@ import TerminScreen from "../screens/TerminScreen";
 import AngebotScreen from "../screens/AngebotScreen";
 import KalenderScreen from "../screens/KalenderScreen";
 import DokumenteScreen from "../screens/DokumenteScreen";
+import StundenScreen from "../screens/StundenScreen";
+import KostenScreen from "../screens/KostenScreen";
+import KalkulationScreen from "../screens/KalkulationScreen";
+import PersonenScreen from "../screens/PersonenScreen";
+import AuswertungScreen from "../screens/AuswertungScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -169,6 +174,36 @@ export default function Navigation() {
               options={({ route }) => ({
                 title: route.params?.terminId ? "Termin bearbeiten" : "Neuer Termin",
               })}
+            />
+            {/* Nachkalkulation. Die Rollen-Trennung passiert NICHT hier —
+                jeder Bildschirm prüft sie selbst und die Firestore-Regeln
+                setzen sie serverseitig durch. Ein Mitarbeiter, der eine
+                Adresse errät, sieht in Kosten/Kalkulation/Personen/Auswertung
+                deshalb nur den Hinweis „Nur für den Betriebsinhaber". */}
+            <Stack.Screen
+              name="Stunden"
+              component={StundenScreen}
+              options={{ title: "Stunden" }}
+            />
+            <Stack.Screen
+              name="Kosten"
+              component={KostenScreen}
+              options={{ title: "Sonstige Kosten" }}
+            />
+            <Stack.Screen
+              name="Kalkulation"
+              component={KalkulationScreen}
+              options={{ title: "Kalkulation" }}
+            />
+            <Stack.Screen
+              name="Personen"
+              component={PersonenScreen}
+              options={{ title: "Personen" }}
+            />
+            <Stack.Screen
+              name="Auswertung"
+              component={AuswertungScreen}
+              options={{ title: "Auswertung" }}
             />
           </>
         )}

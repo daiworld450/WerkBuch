@@ -41,7 +41,7 @@ const EINHEITEN = ["m", "cm", "m²"];
 
 export default function MasseScreen({ route, navigation }) {
   const { baustelleId } = route.params || {};
-  const { istHandwerker } = useAuth();
+  const { darfBearbeiten } = useAuth();
 
   // Ohne baustelleId (z.B. direktes Neuladen der Seite — die Baustellen-ID
   // steht nicht in der Adresszeile) fehlt die Grundlage für diesen Screen.
@@ -173,7 +173,7 @@ export default function MasseScreen({ route, navigation }) {
                   onChangeText={(v) => setRaum({ ...raum, laenge: v })}
                   keyboardType="decimal-pad"
                   platzhalter="0,00"
-                  editable={istHandwerker}
+                  editable={darfBearbeiten}
                 />
               </View>
               <View style={styles.halb}>
@@ -183,7 +183,7 @@ export default function MasseScreen({ route, navigation }) {
                   onChangeText={(v) => setRaum({ ...raum, breite: v })}
                   keyboardType="decimal-pad"
                   platzhalter="0,00"
-                  editable={istHandwerker}
+                  editable={darfBearbeiten}
                 />
               </View>
             </View>
@@ -195,7 +195,7 @@ export default function MasseScreen({ route, navigation }) {
                   onChangeText={(v) => setRaum({ ...raum, hoehe: v })}
                   keyboardType="decimal-pad"
                   platzhalter="0,00"
-                  editable={istHandwerker}
+                  editable={darfBearbeiten}
                 />
               </View>
               <View style={styles.halb}>
@@ -205,11 +205,11 @@ export default function MasseScreen({ route, navigation }) {
                   onChangeText={(v) => setRaum({ ...raum, tuerenFenster: v })}
                   keyboardType="decimal-pad"
                   platzhalter="0,00"
-                  editable={istHandwerker}
+                  editable={darfBearbeiten}
                 />
               </View>
             </View>
-            {istHandwerker ? (
+            {darfBearbeiten ? (
               <Knopf titel="Maße speichern" onPress={raumSpeichern} laedt={speichert} />
             ) : null}
           </Karte>
@@ -237,7 +237,7 @@ export default function MasseScreen({ route, navigation }) {
                 <Text style={styles.mWert}>
                   {flaecheDe(m.wert, m.einheit).replace(" " + m.einheit, "")} {m.einheit}
                 </Text>
-                {istHandwerker ? (
+                {darfBearbeiten ? (
                   <Pressable onPress={() => einzelLoeschen(m.id)} hitSlop={8}>
                     <Text style={styles.mLoeschen}>✕</Text>
                   </Pressable>
@@ -246,7 +246,7 @@ export default function MasseScreen({ route, navigation }) {
             ))
           )}
 
-          {istHandwerker ? (
+          {darfBearbeiten ? (
             <Karte style={{ marginTop: 14 }}>
               <Feld label="Bezeichnung" wert={bez} onChangeText={setBez} platzhalter="z. B. Nischenbreite" />
               <View style={styles.reihe}>
