@@ -11,52 +11,10 @@ import {
   signOut,
   sendEmailVerification,
 } from "firebase/auth";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-  collection,
-  query,
-  where,
-  getDocs,
-  updateDoc,
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
 const AuthContext = createContext(null);
-
-// Holt Baustellen nach, die auf dieses Kundenkonto warten: Der Handwerker
-// kann eine Baustelle anlegen, bevor der Kunde überhaupt ein Konto hat —
-// kundeId bleibt dann zunächst leer, nur kundeEmail ist gesetzt. Meldet
-// sich später jemand mit genau dieser E-Mail-Adresse als Kunde an, holt
-// diese Funktion die Verknüpfung nach. Ohne sie bliebe die Baustelle für
-// den Kunden für immer unsichtbar, egal wie oft er sich anmeldet.
-async function kundeBaustellenVerknuepfen(profilDaten) {
-  if (!profilDaten || profilDaten.rolle !== "kunde" || !profilDaten.email) return;
-  try {
-    const q = query(
-      collection(db, "baustellen"),
-      where("kundeEmail", "==", profilDaten.email),
-      where("kundeId", "==", null)
-    );
-    const snap = await getDocs(q);
-    for (const d of snap.docs) {
-      try {
-        await updateDoc(d.ref, {
-          kundeId: profilDaten.id,
-          kundeName: profilDaten.name || null,
-        });
-      } catch {
-        // Verknüpfung von den Firestore-Regeln abgelehnt — beim nächsten
-        // Anmelden erneut versucht, kein Abbruch der Anmeldung deswegen.
-      }
-    }
-  } catch {
-    // Reiner Komfort-Schritt im Hintergrund, kein kritischer Pfad — die
-    // Anmeldung selbst soll auch klappen, wenn dieser Abgleich fehlschlägt.
-  }
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null); // Firebase-Auth-Nutzer
@@ -71,7 +29,6 @@ export function AuthProvider({ children }) {
           const snap = await getDoc(doc(db, "users", u.uid));
           const p = snap.exists() ? { id: u.uid, ...snap.data() } : null;
           setProfil(p);
-          kundeBaustellenVerknuepfen(p);
         } catch (e) {
           setProfil(null);
         }
@@ -93,7 +50,6 @@ export function AuthProvider({ children }) {
     const snap = await getDoc(doc(db, "users", cred.user.uid));
     const p = snap.exists() ? { id: cred.user.uid, ...snap.data() } : null;
     setProfil(p);
-    kundeBaustellenVerknuepfen(p);
     return cred.user;
   }
 
@@ -114,7 +70,6 @@ export function AuthProvider({ children }) {
     sendEmailVerification(cred.user).catch(() => {});
     const p = { id: cred.user.uid, ...daten };
     setProfil(p);
-    kundeBaustellenVerknuepfen(p);
     return cred.user;
   }
 
@@ -128,7 +83,6 @@ export function AuthProvider({ children }) {
     profil,
     laedt,
     istHandwerker: profil?.rolle === "handwerker",
-    istKunde: profil?.rolle === "kunde",
     anmelden,
     registrieren,
     abmelden,

@@ -69,6 +69,42 @@ export async function ladeDateiHoch(uri, { typ = "image", dateiname, base64 } = 
   };
 }
 
+// Lädt eine beliebige Datei (xlsx, docx, etc.) zu Cloudinary als "raw" hoch —
+// dort interpretiert Cloudinary sie NICHT als Bild (anders als ladeDateiHoch
+// oben, das PDFs bewusst über den image-Endpunkt schickt, damit einzelne
+// Seiten als Bild ausgeliefert werden können). Für die interne
+// Dokumenten-Ablage (DokumenteScreen), wo jeder Dateityp erlaubt ist.
+// Gibt { url, publicId } zurück.
+export async function ladeRohdateiHoch(uri, { dateiname, mime, base64 } = {}) {
+  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/raw/upload`;
+  const echtesMime = mime || "application/octet-stream";
+
+  const dataUri = base64
+    ? `data:${echtesMime};base64,${base64}`
+    : await alsDataUri(uri, echtesMime);
+
+  const body =
+    "upload_preset=" + encodeURIComponent(CLOUDINARY.uploadPreset) +
+    "&file=" + encodeURIComponent(dataUri) +
+    (dateiname ? "&filename=" + encodeURIComponent(dateiname) : "");
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const data = await res.json();
+
+  if (!res.ok || data.error) {
+    const msg = data && data.error ? data.error.message : `HTTP ${res.status}`;
+    throw new Error("Upload fehlgeschlagen: " + msg);
+  }
+  return {
+    url: data.secure_url,
+    publicId: data.public_id,
+  };
+}
+
 // Liefert die Bild-URL einer einzelnen PDF-Seite (1-basiert).
 // Beispiel: .../image/upload/v123/abc.pdf -> .../image/upload/pg_2,w_1200,f_jpg/v123/abc.jpg
 export function pdfSeitenBild(pdfUrl, seite, breite = 1200) {
@@ -78,4 +114,4 @@ export function pdfSeitenBild(pdfUrl, seite, breite = 1200) {
     .replace(/\.pdf($|\?)/, ".jpg$1");
 }
 
-export default { CLOUDINARY, ladeDateiHoch, pdfSeitenBild };
+export default { CLOUDINARY, ladeDateiHoch, ladeRohdateiHoch, pdfSeitenBild };

@@ -18,7 +18,7 @@ service cloud.firestore {
     // an einer Stelle gepflegt, damit read und write nicht auseinanderlaufen.
     function eigeneRegeln() {
       return ['angebot', 'freigaben', 'protokoll', 'guthaben',
-              'zulagenBestellungen', 'nachrichten'];
+              'zulagenBestellungen', 'nachrichten', 'dokumente'];
     }
 
     function istHandwerker() {
@@ -61,52 +61,26 @@ service cloud.firestore {
     // und zugewieseneNutzer (Stub für später echte Mitarbeiter-Accounts, die
     // es im System noch nicht gibt — aktuell immer ein leeres Array, von
     // keiner UI beschrieben). Beide fallen unter die allgemeine
-    // update-Regel unten: nur der Handwerker selbst darf sie ändern, die
-    // enge Kunden-Ausnahme deckt ausschließlich kundeId/kundeName ab und
-    // lässt diese Felder unangetastet.
+    // update-Regel unten: nur der Handwerker selbst darf sie ändern.
     //
-    // NICHTS AUSZUROLLEN: Seit dem letzten Hochladen dieser Datei kam hier nur
-    // dieser Kommentar dazu, keine Regel. Die neuen Felder brauchen keine
-    // eigene Regel, und der Einsatzplan liest den Unterordner "termine" über
-    // die allgemeine Sammelregel weiter unten. Solange unter dieser Zeile
-    // keine Regel verändert wird, muss niemand "firebase deploy" anstoßen.
+    // Kein Kunden-Konto mehr: kundeName/kundeTelefon sind reine
+    // Kontakt-Information auf der Baustelle, kein eigener Zugriff darüber.
     match /baustellen/{bid} {
-      allow read: if angemeldet() &&
-        (resource.data.handwerkerId == meineUid() || resource.data.kundeId == meineUid());
+      allow read: if angemeldet() && resource.data.handwerkerId == meineUid();
       allow create: if angemeldet() && request.resource.data.handwerkerId == meineUid();
-      allow update: if angemeldet() && (
-        resource.data.handwerkerId == meineUid() ||
-        // Nachträgliche Selbstverknüpfung: Der Kunde bekommt eine Baustelle
-        // zu sehen, die der Handwerker unter seiner E-Mail-Adresse angelegt
-        // hat, bevor er ein Konto hatte. Eng begrenzt: nur wenn noch niemand
-        // verknüpft ist, die hinterlegte Adresse zum eigenen (von Google
-        // signierten) Konto passt, und ausschließlich kundeId/kundeName
-        // geändert werden — keine anderen Felder, keine fremde UID.
-        (
-          resource.data.kundeId == null &&
-          resource.data.kundeEmail == request.auth.token.email.lower() &&
-          request.resource.data.kundeId == meineUid() &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['kundeId', 'kundeName'])
-        )
-      );
+      allow update: if angemeldet() && resource.data.handwerkerId == meineUid();
       allow delete: if angemeldet() && resource.data.handwerkerId == meineUid();
 
-      // Sonderregel Angebot: der Kunde darf im Dokument angebot/aktuell
-      // ausschließlich das Feld "status" (plus aktualisiertAm) auf
-      // "Angenommen" oder "Abgelehnt" setzen.
+      // Angebot: nur noch der Handwerker liest/schreibt, keine Kunden-Freigabe
+      // per Online-Klick mehr — Status trägt der Handwerker selbst ein.
       match /angebot/{docId} {
-        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
-        allow create, delete: if angemeldet() && istHandwerkerVon(bid);
-        allow update: if angemeldet() && (
-          // Handwerker: darf alles ändern
-          istHandwerkerVon(bid) ||
-          // Kunde: nur status (+ aktualisiertAm) und nur erlaubte Werte
-          (
-            istKundeVon(bid) &&
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'aktualisiertAm']) &&
-            request.resource.data.status in ['Angenommen', 'Abgelehnt']
-          )
-        );
+        allow read, write: if angemeldet() && istHandwerkerVon(bid);
+      }
+
+      // Interne Dokumenten-Ablage (Teil B): beliebige Dateien pro Baustelle,
+      // nur für den Handwerker.
+      match /dokumente/{dokId} {
+        allow read, write: if angemeldet() && istHandwerkerVon(bid);
       }
 
       // ------------------------------------------------ Nachweis-Sammlungen

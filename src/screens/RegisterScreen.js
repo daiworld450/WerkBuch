@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// RegisterScreen.js — Registrierung mit Rollenauswahl (Kunde / Handwerker).
-// Legt gleichzeitig das users/{uid}-Dokument an.
+// RegisterScreen.js — Registrierung. Es gibt nur noch die Rolle "handwerker"
+// (kein Kunden-Konto mehr) — legt das users/{uid}-Dokument entsprechend an.
 // ---------------------------------------------------------------------------
 
 import React, { useState, useRef } from "react";
@@ -18,7 +18,6 @@ import { useAuth } from "../context/AuthContext";
 import { farben, schrift, groessen, textStil } from "../theme";
 import Feld from "../components/Feld";
 import Knopf from "../components/Knopf";
-import Karte from "../components/Karte";
 import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
 
@@ -28,7 +27,6 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState("");
   const [telefon, setTelefon] = useState("");
   const [passwort, setPasswort] = useState("");
-  const [rolle, setRolle] = useState("kunde");
   const [fehler, setFehler] = useState("");
   const [laedt, setLaedt] = useState(false);
   const scrollRef = useRef(null);
@@ -56,7 +54,7 @@ export default function RegisterScreen() {
     }
     setLaedt(true);
     try {
-      await registrieren({ name, email, telefon, passwort, rolle });
+      await registrieren({ name, email, telefon, passwort, rolle: "handwerker" });
       // Navigation wechselt automatisch über den Auth-Status.
     } catch (e) {
       fehlerZeigen(fehlerText(e));
@@ -78,7 +76,7 @@ export default function RegisterScreen() {
         >
           <Text style={styles.titel}>Konto erstellen</Text>
           <Text style={[textStil.body, styles.unter]}>
-            Wählen Sie Ihre Rolle und legen Sie los.
+            Legen Sie Ihr Handwerker-Konto an.
           </Text>
 
           <Fehlerkasten text={fehler} />
@@ -107,28 +105,6 @@ export default function RegisterScreen() {
             secureTextEntry
           />
 
-          <Text style={styles.label}>Ich bin …</Text>
-          <View style={styles.rollenReihe}>
-            <Karte
-              onPress={() => setRolle("kunde")}
-              ausgewaehlt={rolle === "kunde"}
-              style={styles.rolle}
-            >
-              <Text style={styles.rolleSymbol}>🏠</Text>
-              <Text style={styles.rolleTitel}>Kunde</Text>
-              <Text style={styles.rolleText}>Ich lasse mein Bad sanieren</Text>
-            </Karte>
-            <Karte
-              onPress={() => setRolle("handwerker")}
-              ausgewaehlt={rolle === "handwerker"}
-              style={styles.rolle}
-            >
-              <Text style={styles.rolleSymbol}>🔧</Text>
-              <Text style={styles.rolleTitel}>Handwerker</Text>
-              <Text style={styles.rolleText}>Ich führe Sanierungen aus</Text>
-            </Karte>
-          </View>
-
           <Knopf
             titel="Konto erstellen"
             onPress={konto}
@@ -153,29 +129,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   unter: { marginBottom: 22 },
-  label: {
-    ...schrift.headHalb,
-    fontSize: groessen.klein,
-    color: farben.textWeich,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    marginBottom: 12,
-    marginTop: 6,
-  },
-  rollenReihe: { flexDirection: "row", gap: 12 },
-  rolle: { flex: 1, alignItems: "center", paddingVertical: 22 },
-  rolleSymbol: { fontSize: 32, marginBottom: 10 },
-  rolleTitel: {
-    ...schrift.head,
-    fontSize: 18,
-    color: farben.text,
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  rolleText: {
-    ...schrift.body,
-    fontSize: 12.5,
-    color: farben.textMatt,
-    textAlign: "center",
-  },
 });

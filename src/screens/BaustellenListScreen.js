@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // BaustellenListScreen.js — Startbildschirm nach dem Login.
-// Handwerker: alle Baustellen mit handwerkerId == uid.
-// Kunde: alle mit kundeId == uid. Live über onSnapshot.
+// Alle Baustellen mit handwerkerId == uid — es gibt keine Kunden-Sicht mehr.
+// Live über onSnapshot.
 // ---------------------------------------------------------------------------
 
 import React, { useEffect, useState } from "react";
@@ -29,15 +29,14 @@ import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
 
 export default function BaustellenListScreen({ navigation }) {
-  const { profil, istHandwerker, abmelden } = useAuth();
+  const { profil, abmelden } = useAuth();
   const [baustellen, setBaustellen] = useState([]);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState("");
 
   useEffect(() => {
     if (!profil) return;
-    const feld = istHandwerker ? "handwerkerId" : "kundeId";
-    const q = query(collection(db, "baustellen"), where(feld, "==", profil.id));
+    const q = query(collection(db, "baustellen"), where("handwerkerId", "==", profil.id));
 
     const stop = onSnapshot(
       q,
@@ -59,27 +58,22 @@ export default function BaustellenListScreen({ navigation }) {
       }
     );
     return stop;
-  }, [profil, istHandwerker]);
+  }, [profil]);
 
   function kopf() {
     return (
       <View style={styles.kopf}>
         <View style={{ flex: 1 }}>
           <Text style={styles.hallo}>Hallo {profil?.name || ""}</Text>
-          <Pill
-            text={istHandwerker ? "Handwerker" : "Kunde"}
-            style={{ marginTop: 8 }}
-          />
+          <Pill text="Handwerker" style={{ marginTop: 8 }} />
         </View>
-        {istHandwerker ? (
-          <Pressable
-            onPress={() => navigation.navigate("Einsatzplan")}
-            hitSlop={10}
-            style={{ marginRight: 18 }}
-          >
-            <Text style={styles.einsatzplanLink}>📅 Einsatzplan</Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          onPress={() => navigation.navigate("Einsatzplan")}
+          hitSlop={10}
+          style={{ marginRight: 18 }}
+        >
+          <Text style={styles.einsatzplanLink}>📅 Einsatzplan</Text>
+        </Pressable>
         <Pressable onPress={abmelden} hitSlop={10}>
           <Text style={styles.abmelden}>Abmelden</Text>
         </Pressable>
@@ -131,23 +125,15 @@ export default function BaustellenListScreen({ navigation }) {
           <Leerzustand
             symbol="🏗️"
             titel="Noch keine Baustelle"
-            text={
-              istHandwerker
-                ? "Legen Sie Ihre erste Baustelle an, um Fotos, Maße und Material zu dokumentieren."
-                : "Sobald Ihr Handwerker eine Baustelle für Sie anlegt, erscheint sie hier."
-            }
-            knopfTitel={istHandwerker ? "+ Neue Baustelle" : undefined}
-            onKnopf={
-              istHandwerker
-                ? () => navigation.navigate("NeueBaustelle")
-                : undefined
-            }
+            text="Legen Sie Ihre erste Baustelle an, um Fotos, Maße und Material zu dokumentieren."
+            knopfTitel="+ Neue Baustelle"
+            onKnopf={() => navigation.navigate("NeueBaustelle")}
           />
         }
         contentContainerStyle={styles.liste}
       />
 
-      {istHandwerker && baustellen.length > 0 ? (
+      {baustellen.length > 0 ? (
         <View style={styles.fussLeiste}>
           <Knopf
             titel="+ Neue Baustelle"

@@ -12,7 +12,6 @@ import { farben, schrift } from "../theme";
 import Ladeanzeige from "../components/Ladeanzeige";
 
 import LoginScreen from "../screens/LoginScreen";
-import PortalScreen from "../screens/PortalScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import BaustellenListScreen from "../screens/BaustellenListScreen";
 import NeueBaustelleScreen from "../screens/NeueBaustelleScreen";
@@ -25,6 +24,7 @@ import MaterialScreen from "../screens/MaterialScreen";
 import TermineScreen from "../screens/TermineScreen";
 import AngebotScreen from "../screens/AngebotScreen";
 import EinsatzplanScreen from "../screens/EinsatzplanScreen";
+import DokumenteScreen from "../screens/DokumenteScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -64,8 +64,7 @@ const kopfOptionen = {
 // Zurück/Vor im Browser würde dann auf eine echte GitHub-404-Seite treffen,
 // weil es unter der Domain ohne "/WerkBuch" keine Seite gibt. Deshalb bekommt
 // jeder Pfad das Präfix fest mitgegeben (muss zum "--base=" in
-// tools/patch-index.js passen). Der Kundenlink /angebot/<Token> läuft separat
-// über portalTokenAusAdresse() unten und ist davon unabhängig.
+// tools/patch-index.js passen).
 const BASISPFAD = "WerkBuch";
 const linking = {
   prefixes: [],
@@ -78,35 +77,8 @@ const linking = {
   },
 };
 
-// Erkennt einen Kundenlink schon vor dem Aufbau der Navigation. Nötig, weil
-// die beiden bestehenden Zweige (angemeldet / nicht angemeldet) den
-// Portal-Bildschirm sonst gar nicht enthalten würden.
-function portalTokenAusAdresse() {
-  if (typeof window === "undefined") return null;
-  const treffer = window.location?.pathname?.match(/\/angebot\/([A-Za-z0-9_-]+)/);
-  return treffer ? treffer[1] : null;
-}
-
 export default function Navigation() {
   const { user, laedt } = useAuth();
-  const portalToken = portalTokenAusAdresse();
-
-  // Der Kundenlink hat Vorrang: Wer über einen Angebots-Link kommt, landet im
-  // Portal — auch wenn zufällig noch ein Handwerker-Konto angemeldet ist.
-  if (portalToken) {
-    return (
-      <NavigationContainer theme={AppTheme}>
-        <Stack.Navigator screenOptions={kopfOptionen}>
-          <Stack.Screen
-            name="Portal"
-            component={PortalScreen}
-            initialParams={{ token: portalToken }}
-            options={{ headerShown: false }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-    );
-  }
 
   if (laedt) return <Ladeanzeige text="Anmeldung wird geprüft …" />;
 
@@ -174,6 +146,11 @@ export default function Navigation() {
               name="Termine"
               component={TermineScreen}
               options={{ title: "Termine" }}
+            />
+            <Stack.Screen
+              name="Dokumente"
+              component={DokumenteScreen}
+              options={{ title: "Dokumente" }}
             />
             <Stack.Screen
               name="Angebot"

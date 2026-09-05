@@ -11,6 +11,7 @@ import {
   ScrollView,
   Platform,
   Pressable,
+  Linking,
 } from "react-native";
 import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,8 +22,6 @@ import {
   deleteDoc,
   collection,
   getDocs,
-  query,
-  where,
   Timestamp,
 } from "firebase/firestore";
 // Gleicher Datumswähler wie in TermineScreen — nativ per Community-Picker,
@@ -34,7 +33,6 @@ const DateTimePicker =
 
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
-import { bewertungAnfordern } from "../portal";
 import { farben, schrift, groessen, textStil } from "../theme";
 import Karte from "../components/Karte";
 import Pill from "../components/Pill";
@@ -48,6 +46,12 @@ import fehlerText from "../util/fehler";
 import { datumDe, datumIso, zuDate } from "../util/format";
 
 const STATUS = ["In Planung", "In Ausführung", "Abgeschlossen"];
+
+// Fester Google-Bewertungslink der Firma (aus worker/src/config.js
+// FIRMA.googleBewertungsLink übernommen) — der Bewertungsversand läuft nicht
+// mehr über den Cloudflare-Worker/E-Mail, sondern direkt per WhatsApp-Link.
+const GOOGLE_BEWERTUNG_LINK =
+  "https://www.google.com/maps/place//data=!4m3!3m2!1s0x47b8c1e16ee340bf:0xd14070e51d5d33e7!12e1";
 
 // Inline-Stil für das HTML-Datumsfeld im Web — identisch zu TermineScreen.
 const webDatumStil = {
@@ -68,6 +72,7 @@ const EINSTIEGE = [
   { key: "Masse", symbol: "📐", titel: "Maße & Flächen", text: "Raummaße und automatische Flächenberechnung" },
   { key: "Material", symbol: "🧱", titel: "Material", text: "Fliesen, Boden, Sanitär" },
   { key: "Termine", symbol: "📅", titel: "Termine", text: "Zeitplan der Sanierung" },
+  { key: "Dokumente", symbol: "📎", titel: "Dokumente", text: "Beliebige Dateien: Rechnungen, Kalkulationen, Pläne" },
 ];
 
 export default function BaustelleDetailScreen({ route, navigation }) {
@@ -81,9 +86,10 @@ export default function BaustelleDetailScreen({ route, navigation }) {
   const [baustelle, setBaustelle] = useState(null);
   const [laedt, setLaedt] = useState(true);
   const [weg, setWeg] = useState(false);
-  const [kundeEmailEingabe, setKundeEmailEingabe] = useState("");
-  const [kundeSuchtLaedt, setKundeSuchtLaedt] = useState(false);
-  const [bewertungLaedt, setBewertungLaedt] = useState(false);
+  const [kundeName, setKundeName] = useState("");
+  const [kundeTelefon, setKundeTelefon] = useState("");
+  const [kundeUebernommen, setKundeUebernommen] = useState(false);
+  const [kundeSpeichertLaedt, setKundeSpeichertLaedt] = useState(false);
 
   // Einsatzplanung (geplanter Zeitraum für die Kalenderübersicht)
   const [planStart, setPlanStart] = useState(new Date());
@@ -100,9 +106,15 @@ export default function BaustelleDetailScreen({ route, navigation }) {
         if (snap.exists()) {
           const daten = { id: snap.id, ...snap.data() };
           setBaustelle(daten);
-          setKundeEmailEingabe((vorher) => vorher || daten.kundeEmail || "");
           // Eingabefelder nur beim ersten Laden aus der Baustelle übernehmen,
           // damit eine laufende Eingabe nicht von einem Live-Update überschrieben wird.
+          setKundeUebernommen((schonUebernommen) => {
+            if (!schonUebernommen) {
+              setKundeName(daten.kundeName || "");
+              setKundeTelefon(daten.kundeTelefon || "");
+            }
+            return true;
+          });
           setPlanUebernommen((schonUebernommen) => {
             if (!schonUebernommen) {
               if (daten.geplantStart) setPlanStart(zuDate(daten.geplantStart));
@@ -120,47 +132,26 @@ export default function BaustelleDetailScreen({ route, navigation }) {
     return stop;
   }, [baustelleId]);
 
-  // Sucht per E-Mail erneut nach einem Kundenkonto und verknüpft es —
-  // für Baustellen ohne (korrekte) Adresse, oder falls der Kunde sich beim
-  // Anlegen noch nicht registriert hatte und die automatische Verknüpfung
-  // beim Kunden-Login aus irgendeinem Grund noch nicht gegriffen hat.
-  async function kundeVerknuepfen() {
-    const mail = kundeEmailEingabe.trim().toLowerCase();
-    if (!mail) {
-      Alert.alert("Fehler", "Bitte eine E-Mail-Adresse eingeben.");
-      return;
-    }
-    setKundeSuchtLaedt(true);
+  // Kunde ist nur noch reine Kontakt-Information auf der Baustelle — kein
+  // Konto, keine Suche, keine Verknüpfung.
+  async function kundeSpeichern() {
+    setKundeSpeichertLaedt(true);
     try {
-      const q = query(
-        collection(db, "users"),
-        where("email", "==", mail),
-        where("rolle", "==", "kunde")
-      );
-      const snap = await getDocs(q);
-      let kundeId = null;
-      let kundeName = null;
-      if (!snap.empty) {
-        const d = snap.docs[0];
-        kundeId = d.id;
-        kundeName = d.data().name || null;
-      }
       await updateDoc(doc(db, "baustellen", baustelleId), {
-        kundeEmail: mail,
-        kundeId,
-        kundeName,
+        kundeName: kundeName.trim() || null,
+        kundeTelefon: kundeTelefon.trim() || null,
       });
-      if (!kundeId) {
-        Alert.alert(
-          "Noch kein Konto gefunden",
-          "Die Adresse ist jetzt hinterlegt. Sobald sich der Kunde mit dieser E-Mail registriert oder anmeldet, wird die Baustelle automatisch mit seinem Konto verknüpft."
-        );
-      }
     } catch (e) {
       Alert.alert("Fehler", fehlerText(e));
     } finally {
-      setKundeSuchtLaedt(false);
+      setKundeSpeichertLaedt(false);
     }
+  }
+
+  function anrufen() {
+    const nummer = baustelle?.kundeTelefon;
+    if (!nummer) return;
+    Linking.openURL(`tel:${nummer}`).catch(() => {});
   }
 
   async function statusSetzen(neu) {
@@ -205,36 +196,17 @@ export default function BaustelleDetailScreen({ route, navigation }) {
     }
   }
 
-  // Bewertungsanfrage nach der Abnahme (Bauplan S13): bewusst ein expliziter
-  // Klick statt eines automatischen Versands beim Statuswechsel — der
-  // Statuschip lässt sich versehentlich mehrfach antippen, die Mail an den
-  // Kunden soll aber nur einmal je Abnahme rausgehen. Wurde bereits einmal
-  // angefragt, wird vorher noch einmal nachgefragt.
+  // Bewertungsanfrage nach der Abnahme (Bauplan S13): läuft jetzt ohne
+  // Cloudflare-Worker/E-Mail über einen WhatsApp-Link mit vorformuliertem
+  // Text — nur möglich, wenn eine Telefonnummer hinterlegt ist.
   function bewertungAnfragenKlick() {
-    if (baustelle.bewertungAngefragtAm) {
-      Alert.alert(
-        "Erneut anfragen?",
-        `Die Bewertungsanfrage wurde bereits am ${datumDe(baustelle.bewertungAngefragtAm)} verschickt. Trotzdem erneut senden?`,
-        [
-          { text: "Abbrechen", style: "cancel" },
-          { text: "Erneut senden", onPress: bewertungAnfragenAusfuehren },
-        ]
-      );
-      return;
-    }
-    bewertungAnfragenAusfuehren();
-  }
-
-  async function bewertungAnfragenAusfuehren() {
-    setBewertungLaedt(true);
-    try {
-      const antwort = await bewertungAnfordern({ baustelleId });
-      Alert.alert("Bewertungsanfrage gesendet", `Der Kunde hat eine E-Mail an ${antwort.gesendetAn} bekommen.`);
-    } catch (e) {
-      Alert.alert("Versand nicht möglich", e.message || fehlerText(e));
-    } finally {
-      setBewertungLaedt(false);
-    }
+    const nummer = baustelle?.kundeTelefon;
+    if (!nummer) return;
+    const nummerFuerWhatsapp = nummer.replace(/[^0-9+]/g, "").replace(/^0/, "49");
+    const text = `Hallo${baustelle?.kundeName ? " " + baustelle.kundeName : ""}, vielen Dank für Ihr Vertrauen! Über eine kurze Google-Bewertung würden wir uns sehr freuen: ${GOOGLE_BEWERTUNG_LINK}`;
+    Linking.openURL(
+      `https://wa.me/${nummerFuerWhatsapp}?text=${encodeURIComponent(text)}`
+    ).catch(() => {});
   }
 
   function loeschenFragen() {
@@ -255,7 +227,7 @@ export default function BaustelleDetailScreen({ route, navigation }) {
       // bei Cloudinary; sie werden nicht mehr referenziert und zählen nur zum
       // (großzügigen) Gratis-Speicher. Eine serverseitige Bereinigung ließe
       // sich später über Cloudinary-Admin ergänzen.
-      for (const uo of ["fotos", "angebot", "masse", "material", "termine", "raum"]) {
+      for (const uo of ["fotos", "angebot", "masse", "material", "termine", "raum", "dokumente"]) {
         await unterordnerLoeschen(uo);
       }
       // Hauptdokument
@@ -302,6 +274,11 @@ export default function BaustelleDetailScreen({ route, navigation }) {
         {baustelle.kundeName ? (
           <Text style={styles.kunde}>Kunde: {baustelle.kundeName}</Text>
         ) : null}
+        {baustelle.kundeTelefon ? (
+          <Pressable onPress={anrufen} hitSlop={8}>
+            <Text style={styles.kundeAnruf}>📞 {baustelle.kundeTelefon}</Text>
+          </Pressable>
+        ) : null}
         {baustelle.geplantStart ? (
           <Text style={styles.kunde}>
             Geplanter Zeitraum: {datumDe(baustelle.geplantStart)}
@@ -336,12 +313,11 @@ export default function BaustelleDetailScreen({ route, navigation }) {
           </Karte>
         ))}
 
-        {/* Angebot – Text je nach Rolle */}
+        {/* Angebot */}
         <Karte
           onPress={() =>
             navigation.navigate("Angebot", {
               baustelleId,
-              kundeEmail: baustelle?.kundeEmail || "",
               kundeName: baustelle?.kundeName || "",
             })
           }
@@ -350,9 +326,7 @@ export default function BaustelleDetailScreen({ route, navigation }) {
           <Text style={styles.eSymbol}>📄</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.eTitel}>Angebot</Text>
-            <Text style={styles.eText}>
-              {istHandwerker ? "PDF hochladen" : "Angebot ansehen"}
-            </Text>
+            <Text style={styles.eText}>PDF hochladen</Text>
           </View>
           <Text style={styles.ePfeil}>›</Text>
         </Karte>
@@ -377,15 +351,15 @@ export default function BaustelleDetailScreen({ route, navigation }) {
               <>
                 <Text style={[styles.label, { marginTop: 22 }]}>Bewertung</Text>
                 <Text style={styles.kundeStatus}>
-                  {baustelle.bewertungAngefragtAm
-                    ? `Bewertungsanfrage gesendet am ${datumDe(baustelle.bewertungAngefragtAm)}.`
-                    : "Baustelle ist abgeschlossen — jetzt eine Google-Bewertung anfragen?"}
+                  {baustelle.kundeTelefon
+                    ? "Baustelle ist abgeschlossen — per WhatsApp um eine Google-Bewertung bitten?"
+                    : "Für eine Bewertungsanfrage per WhatsApp erst eine Telefonnummer beim Kunden hinterlegen."}
                 </Text>
                 <Knopf
-                  titel={baustelle.bewertungAngefragtAm ? "Erneut anfragen" : "Bewertung anfragen"}
+                  titel="Bewertung per WhatsApp anfragen"
                   variante="ghost"
                   onPress={bewertungAnfragenKlick}
-                  laedt={bewertungLaedt}
+                  deaktiviert={!baustelle.kundeTelefon}
                 />
               </>
             ) : null}
@@ -477,26 +451,25 @@ export default function BaustelleDetailScreen({ route, navigation }) {
               />
             ) : null}
 
-            <Text style={[styles.label, { marginTop: 22 }]}>Kunde verknüpfen</Text>
-            <Text style={styles.kundeStatus}>
-              {baustelle.kundeId
-                ? `Verknüpft mit ${baustelle.kundeName || baustelle.kundeEmail}`
-                : baustelle.kundeEmail
-                ? "Adresse hinterlegt, aber noch kein Konto verknüpft — erscheint automatisch, sobald sich der Kunde damit anmeldet."
-                : "Noch keine Kunden-E-Mail hinterlegt."}
-            </Text>
+            <Text style={[styles.label, { marginTop: 22 }]}>Kunde</Text>
             <Feld
-              wert={kundeEmailEingabe}
-              onChangeText={setKundeEmailEingabe}
-              platzhalter="kunde@email.de"
-              autoCapitalize="none"
-              keyboardType="email-address"
+              label="Name des Kunden"
+              wert={kundeName}
+              onChangeText={setKundeName}
+              platzhalter="Max Mustermann"
+            />
+            <Feld
+              label="Telefonnummer"
+              wert={kundeTelefon}
+              onChangeText={setKundeTelefon}
+              platzhalter="0176 12345678"
+              keyboardType="phone-pad"
             />
             <Knopf
-              titel="Speichern & Konto suchen"
+              titel="Kunde speichern"
               variante="ghost"
-              onPress={kundeVerknuepfen}
-              laedt={kundeSuchtLaedt}
+              onPress={kundeSpeichern}
+              laedt={kundeSpeichertLaedt}
               style={{ marginTop: 10 }}
             />
 
@@ -524,6 +497,7 @@ const styles = StyleSheet.create({
   },
   adresse: { ...schrift.body, fontSize: 15, color: farben.textMatt, marginTop: 4 },
   kunde: { ...schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 2 },
+  kundeAnruf: { ...schrift.bodyMed, fontSize: 14, color: farben.rot, marginTop: 4 },
   statusReihe: { marginTop: 14 },
   fortReihe: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14, marginBottom: 22 },
   prozent: {
