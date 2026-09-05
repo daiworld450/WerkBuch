@@ -3,7 +3,7 @@
 // Legt gleichzeitig das users/{uid}-Dokument an.
 // ---------------------------------------------------------------------------
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -31,15 +31,27 @@ export default function RegisterScreen() {
   const [rolle, setRolle] = useState("kunde");
   const [fehler, setFehler] = useState("");
   const [laedt, setLaedt] = useState(false);
+  const scrollRef = useRef(null);
+
+  // Das Formular ist länger als der Bildschirm — der Knopf "Konto erstellen"
+  // sitzt unten, die Fehlermeldung erscheint oben (über dem Namensfeld).
+  // Ohne dieses Hochscrollen bleibt sie unsichtbar und es wirkt so, als würde
+  // der Knopf gar nichts tun.
+  function fehlerZeigen(text) {
+    setFehler(text);
+    // react-native-web hat scrollTo({animated:true}) schon mal ignoriert —
+    // deshalb ohne Animation, dafür zuverlässig.
+    scrollRef.current?.scrollTo({ x: 0, y: 0, animated: false });
+  }
 
   async function konto() {
     setFehler("");
     if (!name.trim() || !email.trim() || !passwort) {
-      setFehler("Bitte Name, E-Mail und Passwort ausfüllen.");
+      fehlerZeigen("Bitte Name, E-Mail und Passwort ausfüllen.");
       return;
     }
     if (passwort.length < 6) {
-      setFehler("Das Passwort muss mindestens 6 Zeichen haben.");
+      fehlerZeigen("Das Passwort muss mindestens 6 Zeichen haben.");
       return;
     }
     setLaedt(true);
@@ -47,7 +59,7 @@ export default function RegisterScreen() {
       await registrieren({ name, email, telefon, passwort, rolle });
       // Navigation wechselt automatisch über den Auth-Status.
     } catch (e) {
-      setFehler(fehlerText(e));
+      fehlerZeigen(fehlerText(e));
     } finally {
       setLaedt(false);
     }
@@ -60,6 +72,7 @@ export default function RegisterScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >

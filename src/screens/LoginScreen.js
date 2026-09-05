@@ -2,7 +2,7 @@
 // LoginScreen.js — Anmeldung mit E-Mail und Passwort.
 // ---------------------------------------------------------------------------
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -28,11 +28,19 @@ export default function LoginScreen({ navigation }) {
   const [passwort, setPasswort] = useState("");
   const [fehler, setFehler] = useState("");
   const [laedt, setLaedt] = useState(false);
+  const scrollRef = useRef(null);
+
+  // Auf kurzen Bildschirmen (z.B. Querformat) sitzt die Fehlermeldung sonst
+  // über dem sichtbaren Bereich — dann wirkt der Knopf, als täte er nichts.
+  function fehlerZeigen(text) {
+    setFehler(text);
+    scrollRef.current?.scrollTo({ x: 0, y: 0, animated: false });
+  }
 
   async function login() {
     setFehler("");
     if (!email.trim() || !passwort) {
-      setFehler("Bitte E-Mail und Passwort eingeben.");
+      fehlerZeigen("Bitte E-Mail und Passwort eingeben.");
       return;
     }
     setLaedt(true);
@@ -40,7 +48,7 @@ export default function LoginScreen({ navigation }) {
       await anmelden(email, passwort);
       // Navigation wechselt automatisch über den Auth-Status.
     } catch (e) {
-      setFehler(fehlerText(e));
+      fehlerZeigen(fehlerText(e));
     } finally {
       setLaedt(false);
     }
@@ -53,6 +61,7 @@ export default function LoginScreen({ navigation }) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
