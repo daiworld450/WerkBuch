@@ -14,6 +14,8 @@
 // Haken bei "Allow delivery of PDF and ZIP files".
 // ---------------------------------------------------------------------------
 
+import { Platform } from "react-native";
+
 export const CLOUDINARY = {
   cloudName: "iqigqezt",
   uploadPreset: "WerkBauBuch",
@@ -75,24 +77,32 @@ export async function ladeDateiHoch(uri, { typ = "image", dateiname, base64 } = 
 // Seiten als Bild ausgeliefert werden können). Für die interne
 // Dokumenten-Ablage (DokumenteScreen), wo jeder Dateityp erlaubt ist.
 // Gibt { url, publicId } zurück.
-export async function ladeRohdateiHoch(uri, { dateiname, mime, base64 } = {}) {
+//
+// ACHTUNG, anders als ladeDateiHoch oben: Der raw-Endpunkt akzeptiert KEINE
+// Base64-Daten-URI. Cloudinary antwortet darauf mit "Unsupported source URL"
+// — geprüft mit einer echten .xlsx gegen den Live-Endpunkt. Deshalb hier
+// zwingend ein echter Datei-Anhang (multipart/form-data). Web und native
+// brauchen dafür unterschiedliche Formen:
+//   Web    — die Datei erst als Blob holen und den Blob anhängen.
+//   Native — React Native versteht {uri, name, type} direkt.
+// Den Content-Type NICHT selbst setzen: fetch ergänzt sonst die nötige
+// multipart-Grenzmarkierung nicht.
+export async function ladeRohdateiHoch(uri, { dateiname, mime } = {}) {
   const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY.cloudName}/raw/upload`;
   const echtesMime = mime || "application/octet-stream";
+  const name = dateiname || "datei";
 
-  const dataUri = base64
-    ? `data:${echtesMime};base64,${base64}`
-    : await alsDataUri(uri, echtesMime);
+  const form = new FormData();
+  form.append("upload_preset", CLOUDINARY.uploadPreset);
 
-  const body =
-    "upload_preset=" + encodeURIComponent(CLOUDINARY.uploadPreset) +
-    "&file=" + encodeURIComponent(dataUri) +
-    (dateiname ? "&filename=" + encodeURIComponent(dateiname) : "");
+  if (Platform.OS === "web") {
+    const blob = await (await fetch(uri)).blob();
+    form.append("file", blob, name);
+  } else {
+    form.append("file", { uri, name, type: echtesMime });
+  }
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  const res = await fetch(endpoint, { method: "POST", body: form });
   const data = await res.json();
 
   if (!res.ok || data.error) {
