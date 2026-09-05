@@ -246,20 +246,26 @@ Für iOS benötigen Sie:
    - **Termine**: Datum wählen, Termin anlegen, abhaken.
    - **Angebot**: PDF hochladen → Status wird automatisch „Gesendet".
    - **Einsatzplanung**: geplanten Start und geplantes Ende setzen (Grundlage
-     für den Einsatzplan).
+     für die Balken „Baustelle läuft" im Kalender).
 6. Abmelden, als **Kunde** anmelden → dieselbe Baustelle erscheint. Der Kunde sieht
    alles (Fotos, Maße, Material, Termine, Angebot), kann aber **nichts ändern**,
    **nichts herunterladen** und beim Angebot nur **Annehmen/Ablehnen**.
-7. Zurück zur Baustellenliste (als **Handwerker**) → **„📅 Einsatzplan"**:
-   Wochenansicht über alle eigenen Baustellen, mit den Zählern „aktiv heute",
-   „diese Woche" und „ohne Termin", Pfeilen für die Woche davor/danach und
-   einem Balken je Baustelle. Nur der Handwerker sieht diesen Bildschirm.
+7. Zurück zur Baustellenliste (als **Handwerker**) → **„📅 Kalender"**:
+   Monats-, Wochen- und Tagesansicht über Chips umschaltbar, Pfeile für den
+   Zeitraum davor/danach, „Heute"-Sprung und die Zähler „aktiv heute",
+   „diesen Monat/diese Woche/an diesem Tag" und „ohne Termin". Über
+   **„+ Neuer Termin"** legt der Inhaber freie Termine an (Titel, Art,
+   ganztägig oder mit Uhrzeit, optionale Baustelle, Notiz). Nur der
+   Handwerker sieht diesen Bildschirm.
 
-> **Einsatzplan und Termine:** Fehlt bei einer Baustelle der geplante Start,
-> leitet der Einsatzplan den Zeitraum aus den bereits angelegten **Terminen** ab
-> (frühester bis spätester Termin) und kennzeichnet ihn mit „aus den Terminen".
-> Derselbe Zeitraum muss dadurch nur einmal gepflegt werden. Steht ein geplanter
-> Start, gilt unverändert allein `geplantStart`/`geplantEnde`.
+> **Kalender und Termine:** Termine liegen in der top-level Sammlung
+> `termine` (Felder u.a. `handwerkerId`, `start`, `ende`, `ganztags`, `art`,
+> `baustelleId`) — nicht mehr als Unterordner einer Baustelle. Nur so lässt
+> sich der Kalender mit einer einzigen Abfrage über alle Termine bauen.
+> Der Kalender zeigt sie zusammen mit den geplanten Zeiträumen der
+> Baustellen (`geplantStart`/`geplantEnde`), die als umrandete Balken
+> „Baustelle läuft" erscheinen. Der Bildschirm **Termine** einer Baustelle
+> zeigt dieselbe Sammlung, gefiltert auf diese Baustelle.
 
 ---
 
@@ -299,6 +305,7 @@ BerisaBauApp/
     navigation/index.js      Stack-Navigation
     components/              Karte, Knopf, Feld, Pill, Fortschritt, Logo, …
     screens/                 Login, Register, Liste, Detail, Fotos, Maße,
-                             Termine, Angebot, Einsatzplan, …
-    util/                    berechnung.js, format.js, fehler.js, baustelle.js
+                             Termine, Termin, Angebot, Kalender, …
+    util/                    berechnung.js, format.js, fehler.js, baustelle.js,
+                             termine.js
 ```

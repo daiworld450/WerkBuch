@@ -1,52 +1,45 @@
 // ---------------------------------------------------------------------------
-// TermineScreen.js — Zeitplan der Sanierung. Handwerker legt Termine an,
-// hakt sie ab und löscht sie. Kunde sieht nur. Vergangene/erledigte Termine
-// werden abgedunkelt mit grünem Häkchen dargestellt.
+// TermineScreen.js — Zeitplan EINER Baustelle.
+//
+// Liest seit dem Kalender-Umbau NICHT mehr den Unterordner
+// baustellen/{id}/termine, sondern die top-level Sammlung "termine" und
+// filtert clientseitig auf diese Baustelle (Abfrage nur über handwerkerId —
+// so ist kein zusammengesetzter Firestore-Index nötig).
+//
+// Angelegt und bearbeitet werden Termine im gemeinsamen TerminScreen; hier
+// bleiben Abhaken und Löschen direkt an der Liste. Es gibt nur noch die
+// Handwerker-Sicht (kein Kundenzugang mehr).
 // ---------------------------------------------------------------------------
 
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
-// Der native Datumswähler existiert nicht im Web — dort nutzen wir ein
-// HTML-Datumsfeld (unter react-native-web sind DOM-Elemente erlaubt).
-const DateTimePicker =
-  Platform.OS === "web"
-    ? null
-    : require("@react-native-community/datetimepicker").default;
 import {
   collection,
+  query,
+  where,
   onSnapshot,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
-  serverTimestamp,
-  Timestamp,
 } from "firebase/firestore";
 
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
-import { farben, schrift, groessen } from "../theme";
+import { farben, schrift } from "../theme";
 import Karte from "../components/Karte";
-import Feld from "../components/Feld";
 import Knopf from "../components/Knopf";
 import Leerzustand from "../components/Leerzustand";
 import Ladeanzeige from "../components/Ladeanzeige";
-import { datumDe, datumIso, zuDate } from "../util/format";
+import Fehlerkasten from "../components/Fehlerkasten";
+import { datumDe, zuDate } from "../util/format";
 import fehlerText from "../util/fehler";
+import { artInfo, uhrzeitDe } from "../util/termine";
 
 export default function TermineScreen({ route, navigation }) {
   const { baustelleId } = route.params || {};
-  const { istHandwerker } = useAuth();
+  const { profil } = useAuth();
 
   useEffect(() => {
     if (!baustelleId) navigation.replace("Baustellen");
@@ -55,53 +48,41 @@ export default function TermineScreen({ route, navigation }) {
 
   const [termine, setTermine] = useState([]);
   const [laedt, setLaedt] = useState(true);
-  const [formOffen, setFormOffen] = useState(false);
-  const [titel, setTitel] = useState("");
-  const [beschreibung, setBeschreibung] = useState("");
-  const [datum, setDatum] = useState(new Date());
-  const [pickerAuf, setPickerAuf] = useState(false);
+  const [fehler, setFehler] = useState("");
 
   useEffect(() => {
+    if (!profil) return;
+    const q = query(
+      collection(db, "termine"),
+      where("handwerkerId", "==", profil.id)
+    );
     const stop = onSnapshot(
-      collection(db, "baustellen", baustelleId, "termine"),
+      q,
       (snap) => {
-        const l = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        l.sort((a, b) => (a.datum?.seconds || 0) - (b.datum?.seconds || 0));
-        setTermine(l);
+        const liste = snap.docs
+          .map((d) => {
+            const daten = d.data();
+            const start = zuDate(daten.start) || new Date();
+            return { id: d.id, ...daten, _start: start, _ende: zuDate(daten.ende) || start };
+          })
+          // Clientseitig auf diese Baustelle filtern und sortieren
+          .filter((t) => t.baustelleId === baustelleId);
+        liste.sort((a, b) => a._start - b._start);
+        setTermine(liste);
         setLaedt(false);
+        setFehler("");
       },
-      () => setLaedt(false)
+      (e) => {
+        setFehler(fehlerText(e));
+        setLaedt(false);
+      }
     );
     return stop;
-  }, [baustelleId]);
-
-  async function speichern() {
-    if (!titel.trim()) {
-      Alert.alert("Fehlt noch", "Bitte geben Sie einen Titel ein.");
-      return;
-    }
-    try {
-      await addDoc(collection(db, "baustellen", baustelleId, "termine"), {
-        datum: Timestamp.fromDate(datum),
-        titel: titel.trim(),
-        beschreibung: beschreibung.trim(),
-        erledigt: false,
-        erstelltAm: serverTimestamp(),
-      });
-      setTitel("");
-      setBeschreibung("");
-      setDatum(new Date());
-      setFormOffen(false);
-    } catch (e) {
-      Alert.alert("Fehler", fehlerText(e));
-    }
-  }
+  }, [profil, baustelleId]);
 
   async function abhaken(t) {
     try {
-      await updateDoc(doc(db, "baustellen", baustelleId, "termine", t.id), {
-        erledigt: !t.erledigt,
-      });
+      await updateDoc(doc(db, "termine", t.id), { erledigt: !t.erledigt });
     } catch (e) {
       Alert.alert("Fehler", fehlerText(e));
     }
@@ -115,7 +96,7 @@ export default function TermineScreen({ route, navigation }) {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteDoc(doc(db, "baustellen", baustelleId, "termine", t.id));
+            await deleteDoc(doc(db, "termine", t.id));
           } catch (e) {
             Alert.alert("Fehler", fehlerText(e));
           }
@@ -125,142 +106,82 @@ export default function TermineScreen({ route, navigation }) {
   }
 
   function istVergangen(t) {
-    const d = zuDate(t.datum);
-    if (!d) return false;
     const heute = new Date();
     heute.setHours(0, 0, 0, 0);
-    return d < heute;
+    return t._ende < heute;
+  }
+
+  function neuerTermin() {
+    navigation.navigate("Termin", { baustelleId });
   }
 
   if (laedt) return <Ladeanzeige text="Termine werden geladen …" />;
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          {termine.length === 0 && !formOffen ? (
-            <Leerzustand
-              symbol="📅"
-              titel="Noch keine Termine"
-              text={
-                istHandwerker
-                  ? "Planen Sie die Schritte der Sanierung."
-                  : "Sobald Termine geplant sind, sehen Sie hier Ihren Zeitplan."
-              }
-              knopfTitel={istHandwerker ? "Termin hinzufügen" : undefined}
-              onKnopf={istHandwerker ? () => setFormOffen(true) : undefined}
-            />
-          ) : (
-            termine.map((t) => {
-              const gedimmt = t.erledigt || istVergangen(t);
-              return (
-                <Karte key={t.id} style={[styles.tKarte, gedimmt && styles.gedimmt]}>
-                  <View style={styles.tReihe}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.tDatum, gedimmt && styles.tMatt]}>
-                        {datumDe(t.datum)}
-                      </Text>
-                      <Text style={[styles.tTitel, gedimmt && styles.tMatt]}>
-                        {t.erledigt ? "✓ " : ""}
-                        {t.titel}
-                      </Text>
-                      {t.beschreibung ? (
-                        <Text style={styles.tBeschreibung}>{t.beschreibung}</Text>
-                      ) : null}
-                    </View>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <Fehlerkasten text={fehler} />
+
+        {termine.length === 0 ? (
+          <Leerzustand
+            symbol="📅"
+            titel="Noch keine Termine"
+            text="Planen Sie die Schritte der Sanierung. Termine erscheinen auch im Kalender."
+            knopfTitel="Termin hinzufügen"
+            onKnopf={neuerTermin}
+          />
+        ) : (
+          termine.map((t) => {
+            const gedimmt = t.erledigt || istVergangen(t);
+            const art = artInfo(t.art);
+            const zeit = t.ganztags
+              ? "Ganztägig"
+              : `${uhrzeitDe(t._start)} – ${uhrzeitDe(t._ende)} Uhr`;
+            return (
+              <Karte
+                key={t.id}
+                onPress={() => navigation.navigate("Termin", { terminId: t.id })}
+                style={[styles.tKarte, gedimmt && styles.gedimmt]}
+              >
+                <View style={styles.tReihe}>
+                  <View style={[styles.tFarbe, { backgroundColor: art.farbe }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.tDatum, gedimmt && styles.tMatt]}>
+                      {datumDe(t._start)}
+                      {t._ende && datumDe(t._ende) !== datumDe(t._start)
+                        ? ` – ${datumDe(t._ende)}`
+                        : ""}
+                    </Text>
+                    <Text style={styles.tZeit}>
+                      {zeit} · {art.label}
+                    </Text>
+                    <Text style={[styles.tTitel, gedimmt && styles.tMatt]}>
+                      {t.erledigt ? "✓ " : ""}
+                      {t.titel}
+                    </Text>
+                    {t.notiz ? <Text style={styles.tNotiz}>{t.notiz}</Text> : null}
                   </View>
+                </View>
 
-                  {istHandwerker ? (
-                    <View style={styles.tAktionen}>
-                      <Pressable onPress={() => abhaken(t)} hitSlop={6}>
-                        <Text style={[styles.tAktion, t.erledigt && { color: farben.gruen }]}>
-                          {t.erledigt ? "✓ Erledigt" : "Abhaken"}
-                        </Text>
-                      </Pressable>
-                      <Pressable onPress={() => loeschenFragen(t)} hitSlop={6}>
-                        <Text style={[styles.tAktion, { color: farben.rotHell }]}>Löschen</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </Karte>
-              );
-            })
-          )}
-
-          {/* Formular */}
-          {istHandwerker && formOffen ? (
-            <Karte style={{ marginTop: 8 }}>
-              <Text style={styles.formTitel}>Neuer Termin</Text>
-
-              <Text style={styles.kleinLabel}>Datum</Text>
-              {Platform.OS === "web" ? (
-                // HTML-Datumsfeld (nur im Web) — öffnet den Browser-Datumswähler
-                <input
-                  type="date"
-                  value={datumIso(datum)}
-                  onChange={(e) => {
-                    const d = new Date(e.target.value + "T12:00:00");
-                    if (!isNaN(d.getTime())) setDatum(d);
-                  }}
-                  style={{
-                    background: "rgba(255,255,255,.05)",
-                    border: "1.5px solid rgba(255,255,255,.14)",
-                    borderRadius: 12,
-                    padding: "15px 16px",
-                    color: "#fff",
-                    fontSize: 16,
-                    marginBottom: 16,
-                    colorScheme: "dark",
-                    width: "100%",
-                  }}
-                />
-              ) : (
-                <>
-                  <Pressable onPress={() => setPickerAuf(true)} style={styles.datumFeld}>
-                    <Text style={styles.datumText}>{datumDe(datum)}</Text>
+                <View style={styles.tAktionen}>
+                  <Pressable onPress={() => abhaken(t)} hitSlop={6}>
+                    <Text style={[styles.tAktion, t.erledigt && { color: farben.gruen }]}>
+                      {t.erledigt ? "✓ Erledigt" : "Abhaken"}
+                    </Text>
                   </Pressable>
-                  {pickerAuf ? (
-                    <DateTimePicker
-                      value={datum}
-                      mode="date"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      themeVariant="dark"
-                      onChange={(e, gewaehlt) => {
-                        setPickerAuf(Platform.OS === "ios");
-                        if (gewaehlt) setDatum(gewaehlt);
-                      }}
-                    />
-                  ) : null}
-                </>
-              )}
+                  <Pressable onPress={() => loeschenFragen(t)} hitSlop={6}>
+                    <Text style={[styles.tAktion, { color: farben.rotHell }]}>Löschen</Text>
+                  </Pressable>
+                </View>
+              </Karte>
+            );
+          })
+        )}
 
-              <Feld label="Titel" wert={titel} onChangeText={setTitel} platzhalter="z. B. Fliesenleger vor Ort" />
-              <Feld
-                label="Beschreibung (optional)"
-                wert={beschreibung}
-                onChangeText={setBeschreibung}
-                platzhalter="Details zum Termin"
-                multiline
-              />
-
-              <Knopf titel="Termin speichern" onPress={speichern} />
-              <Knopf
-                titel="Abbrechen"
-                variante="ghost"
-                onPress={() => setFormOffen(false)}
-                style={{ marginTop: 10 }}
-              />
-            </Karte>
-          ) : null}
-
-          {istHandwerker && !formOffen && termine.length > 0 ? (
-            <Knopf titel="+ Termin hinzufügen" onPress={() => setFormOffen(true)} style={{ marginTop: 6 }} />
-          ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {termine.length > 0 ? (
+          <Knopf titel="+ Termin hinzufügen" onPress={neuerTermin} style={{ marginTop: 6 }} />
+        ) : null}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -270,30 +191,19 @@ const styles = StyleSheet.create({
   scroll: { padding: 20, paddingBottom: 48 },
   tKarte: { marginBottom: 12 },
   gedimmt: { opacity: 0.55 },
-  tReihe: { flexDirection: "row" },
+  tReihe: { flexDirection: "row", gap: 12 },
+  tFarbe: { width: 5, borderRadius: 3, alignSelf: "stretch" },
   tDatum: { ...schrift.head, fontSize: 22, color: farben.text, letterSpacing: 0.5 },
+  tZeit: { ...schrift.headHalb, fontSize: 13, color: farben.textMatt, letterSpacing: 0.5, marginTop: 2 },
   tTitel: { ...schrift.bodyMed, fontSize: 16, color: farben.text, marginTop: 4 },
   tMatt: { color: farben.textWeich },
-  tBeschreibung: { ...schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 4, lineHeight: 20 },
+  tNotiz: { ...schrift.body, fontSize: 14, color: farben.textMatt, marginTop: 4, lineHeight: 20 },
   tAktionen: { flexDirection: "row", gap: 20, marginTop: 14 },
-  tAktion: { ...schrift.headHalb, fontSize: 14, color: farben.textWeich, letterSpacing: 0.5, textTransform: "uppercase" },
-  formTitel: { ...schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5, marginBottom: 14 },
-  kleinLabel: {
+  tAktion: {
     ...schrift.headHalb,
-    fontSize: groessen.klein,
+    fontSize: 14,
     color: farben.textWeich,
     letterSpacing: 0.5,
     textTransform: "uppercase",
-    marginBottom: 8,
   },
-  datumFeld: {
-    backgroundColor: farben.feldBg,
-    borderWidth: 1.5,
-    borderColor: farben.linie,
-    borderRadius: 12,
-    paddingVertical: 15,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  datumText: { ...schrift.body, fontSize: 16, color: farben.text },
 });

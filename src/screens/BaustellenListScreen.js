@@ -68,11 +68,11 @@ export default function BaustellenListScreen({ navigation }) {
           <Pill text="Handwerker" style={{ marginTop: 8 }} />
         </View>
         <Pressable
-          onPress={() => navigation.navigate("Einsatzplan")}
+          onPress={() => navigation.navigate("Kalender")}
           hitSlop={10}
           style={{ marginRight: 18 }}
         >
-          <Text style={styles.einsatzplanLink}>📅 Einsatzplan</Text>
+          <Text style={styles.kalenderLink}>📅 Kalender</Text>
         </Pressable>
         <Pressable onPress={abmelden} hitSlop={10}>
           <Text style={styles.abmelden}>Abmelden</Text>
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     color: farben.textMatt,
     paddingTop: 6,
   },
-  einsatzplanLink: {
+  kalenderLink: {
     ...schrift.bodyMed,
     fontSize: 14,
     color: farben.textWeich,

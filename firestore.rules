@@ -56,6 +56,18 @@ service cloud.firestore {
       allow delete: if angemeldet() && uid == meineUid();
     }
 
+    // ------------------------------------------------------------ termine
+    // Kalender-Termine des Betriebsinhabers. Bewusst TOP-LEVEL und nicht als
+    // Unterordner einer Baustelle: der Kalender braucht alle Termine mit
+    // EINER Abfrage (where handwerkerId == uid), unabhängig davon, ob eine
+    // Baustelle verknüpft ist. Die optionale baustelleId ist reine
+    // Anzeige-Information und gewährt keinerlei zusätzlichen Zugriff.
+    match /termine/{terminId} {
+      allow read: if angemeldet() && resource.data.handwerkerId == meineUid();
+      allow create: if angemeldet() && request.resource.data.handwerkerId == meineUid();
+      allow update, delete: if angemeldet() && resource.data.handwerkerId == meineUid();
+    }
+
     // --------------------------------------------------------- baustellen
     // Enthält u.a. geplantStart/geplantEnde (Einsatzplanung/Kalenderübersicht)
     // und zugewieseneNutzer (Stub für später echte Mitarbeiter-Accounts, die

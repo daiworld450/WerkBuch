@@ -22,6 +22,8 @@ import {
   deleteDoc,
   collection,
   getDocs,
+  query,
+  where,
   Timestamp,
 } from "firebase/firestore";
 // Gleicher Datumswähler wie in TermineScreen — nativ per Community-Picker,
@@ -77,7 +79,7 @@ const EINSTIEGE = [
 
 export default function BaustelleDetailScreen({ route, navigation }) {
   const { baustelleId } = route.params || {};
-  const { istHandwerker } = useAuth();
+  const { istHandwerker, profil } = useAuth();
 
   useEffect(() => {
     if (!baustelleId) navigation.replace("Baustellen");
@@ -162,8 +164,8 @@ export default function BaustelleDetailScreen({ route, navigation }) {
     }
   }
 
-  // Geplanten Zeitraum speichern — Grundlage für die Einsatzplan-/
-  // Kalenderübersicht (EinsatzplanScreen).
+  // Geplanten Zeitraum speichern — Grundlage für die Balken „Baustelle läuft“
+  // im Kalender (KalenderScreen).
   async function planSpeichern() {
     if (planEnde < planStart) {
       Alert.alert("Prüfen", "Das Ende liegt vor dem Start.");
@@ -227,9 +229,14 @@ export default function BaustelleDetailScreen({ route, navigation }) {
       // bei Cloudinary; sie werden nicht mehr referenziert und zählen nur zum
       // (großzügigen) Gratis-Speicher. Eine serverseitige Bereinigung ließe
       // sich später über Cloudinary-Admin ergänzen.
-      for (const uo of ["fotos", "angebot", "masse", "material", "termine", "raum", "dokumente"]) {
+      for (const uo of ["fotos", "angebot", "masse", "material", "raum", "dokumente"]) {
         await unterordnerLoeschen(uo);
       }
+      // Termine liegen seit dem Kalender-Umbau NICHT mehr als Unterordner an
+      // der Baustelle, sondern in der top-level Sammlung "termine". Die
+      // zugehörigen werden hier mitgelöscht — sonst blieben Geister-Termine
+      // mit einer Verknüpfung auf eine gelöschte Baustelle im Kalender stehen.
+      await termineDerBaustelleLoeschen();
       // Hauptdokument
       await deleteDoc(doc(db, "baustellen", baustelleId));
       navigation.goBack();
@@ -244,6 +251,19 @@ export default function BaustelleDetailScreen({ route, navigation }) {
     const snap = await getDocs(collection(db, "baustellen", baustelleId, name));
     for (const d of snap.docs) {
       await deleteDoc(d.ref);
+    }
+  }
+
+  // Löscht alle Termine, die mit dieser Baustelle verknüpft sind. Abgefragt
+  // wird nur über handwerkerId (kein zusammengesetzter Index nötig), die
+  // Zuordnung zur Baustelle geschieht clientseitig.
+  async function termineDerBaustelleLoeschen() {
+    if (!profil) return;
+    const snap = await getDocs(
+      query(collection(db, "termine"), where("handwerkerId", "==", profil.id))
+    );
+    for (const d of snap.docs) {
+      if (d.data().baustelleId === baustelleId) await deleteDoc(d.ref);
     }
   }
 
@@ -366,7 +386,7 @@ export default function BaustelleDetailScreen({ route, navigation }) {
 
             <Text style={[styles.label, { marginTop: 22 }]}>Einsatzplanung</Text>
             <Text style={styles.kundeStatus}>
-              Geplanter Zeitraum für die Kalenderübersicht (Menüpunkt „Einsatzplan“).
+              Geplanter Zeitraum für die Kalenderübersicht (Menüpunkt „Kalender“).
             </Text>
             <View style={styles.planReihe}>
               <View style={{ flex: 1 }}>

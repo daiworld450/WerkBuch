@@ -22,8 +22,9 @@ import FotoViewerScreen from "../screens/FotoViewerScreen";
 import MasseScreen from "../screens/MasseScreen";
 import MaterialScreen from "../screens/MaterialScreen";
 import TermineScreen from "../screens/TermineScreen";
+import TerminScreen from "../screens/TerminScreen";
 import AngebotScreen from "../screens/AngebotScreen";
-import EinsatzplanScreen from "../screens/EinsatzplanScreen";
+import KalenderScreen from "../screens/KalenderScreen";
 import DokumenteScreen from "../screens/DokumenteScreen";
 
 const Stack = createNativeStackNavigator();
@@ -158,9 +159,16 @@ export default function Navigation() {
               options={{ title: "Angebot" }}
             />
             <Stack.Screen
-              name="Einsatzplan"
-              component={EinsatzplanScreen}
-              options={{ title: "Einsatzplan" }}
+              name="Kalender"
+              component={KalenderScreen}
+              options={{ title: "Kalender" }}
+            />
+            <Stack.Screen
+              name="Termin"
+              component={TerminScreen}
+              options={({ route }) => ({
+                title: route.params?.terminId ? "Termin bearbeiten" : "Neuer Termin",
+              })}
             />
           </>
         )}
