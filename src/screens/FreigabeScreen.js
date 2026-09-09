@@ -26,6 +26,8 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  Pressable,
+  Platform,
   ActivityIndicator,
   useWindowDimensions,
 } from "react-native";
@@ -38,6 +40,20 @@ import Knopf from "../components/Knopf";
 import Feld from "../components/Feld";
 import { euroAusCent, KNOPF_LABEL } from "../util/nachtrag";
 import { datumZeitDe } from "../util/format";
+
+// Der Weg zurück in die App.
+//
+// Ohne ihn ist diese Seite eine Sackgasse: Wer den Link auf dem eigenen Handy
+// öffnet — und das tut der Betrieb beim Prüfen zwangsläufig — kommt nicht mehr
+// in WerkBuch, weil das ?f= in der Adresse stehen bleibt. Bei der installierten
+// App fällt das besonders auf.
+//
+// Für einen Kunden ist es der Name des Betriebs, den man antippt. Er landet
+// dann bei der Anmeldung, was für ihn folgenlos ist.
+function zurApp() {
+  if (Platform.OS !== "web" || typeof window === "undefined") return;
+  window.location.href = window.location.pathname;
+}
 
 export default function FreigabeScreen({ schluessel }) {
   const { width } = useWindowDimensions();
@@ -147,7 +163,7 @@ export default function FreigabeScreen({ schluessel }) {
       <View style={styles.mitte}>
         <Text style={styles.hinweisTitel}>{texte.titel}</Text>
         <Text style={styles.hinweisText}>{texte.text}</Text>
-        <Text style={styles.betriebFuss}>Berisa Bau · Mülheim an der Ruhr</Text>
+        <Fusszeile />
       </View>
     );
   }
@@ -183,7 +199,7 @@ export default function FreigabeScreen({ schluessel }) {
             Diesen Wortlaut haben wir zusammen mit dem Zeitpunkt unveränderlich gespeichert.
             Machen Sie sich gern einen Bildschirmabzug für Ihre Unterlagen.
           </Text>
-          <Text style={styles.betriebFuss}>Berisa Bau · Mülheim an der Ruhr</Text>
+          <Fusszeile />
         </ScrollView>
       </SafeAreaView>
     );
@@ -270,9 +286,17 @@ export default function FreigabeScreen({ schluessel }) {
           gezeigten Text — mehr nicht. Grundlage ist die Durchführung unseres Vertrags
           (Art. 6 Abs. 1 lit. b DSGVO). Der Link läuft nach 30 Tagen ab.
         </Text>
-        <Text style={styles.betriebFuss}>Berisa Bau · Mülheim an der Ruhr</Text>
+        <Fusszeile />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function Fusszeile() {
+  return (
+    <Pressable onPress={zurApp} hitSlop={10}>
+      <Text style={styles.betriebFuss}>Berisa Bau · Mülheim an der Ruhr</Text>
+    </Pressable>
   );
 }
 

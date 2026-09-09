@@ -36,6 +36,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import {
+  collection,
   doc,
   onSnapshot,
   getDoc,
@@ -47,6 +48,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../firebase";
+import { PHASEN } from "../util/baustelle";
 import { ladeDateiHoch } from "../cloudinary";
 import { useAuth } from "../context/AuthContext";
 import { farben, schrift, groessen, radius, textStil } from "../theme";
@@ -56,7 +58,7 @@ import Feld from "../components/Feld";
 import Pill from "../components/Pill";
 import Ladeanzeige from "../components/Ladeanzeige";
 import fehlerText from "../util/fehler";
-import { datumZeitDe } from "../util/format";
+import { datumDe, datumZeitDe } from "../util/format";
 import {
   EINHEITEN,
   UST_SATZ,
@@ -90,6 +92,12 @@ export default function NachtragScreen({ route, navigation }) {
   const [hochladen, setHochladen] = useState(false);
   const [bearbeiten, setBearbeiten] = useState(false);
   const [form, setForm] = useState(null);
+  // Die Fotos, die auf dieser Baustelle ohnehin schon liegen — nach Bauphase.
+  // Sie sind der Regelfall: Was der Kunde sehen soll, ist meist längst
+  // fotografiert. Ein zweites Mal hochzuladen wäre unnötige Arbeit und würde
+  // dasselbe Bild doppelt bei Cloudinary ablegen.
+  const [baustellenFotos, setBaustellenFotos] = useState([]);
+  const [auswahlOffen, setAuswahlOffen] = useState(false);
 
   const pfad = ["baustellen", baustelleId, "nachtraege", nachtragId];
 
@@ -115,6 +123,26 @@ export default function NachtragScreen({ route, navigation }) {
     getDoc(doc(db, "baustellen", baustelleId))
       .then((s) => setBaustelle(s.exists() ? { id: s.id, ...s.data() } : null))
       .catch(() => {});
+  }, [baustelleId]);
+
+  useEffect(() => {
+    const stop = onSnapshot(
+      collection(db, "baustellen", baustelleId, "fotos"),
+      (snap) => {
+        const liste = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // In der Reihenfolge der Bauabschnitte, innerhalb der Phase neueste
+        // zuerst — so findet man das Bild vom Problem, um das es gerade geht.
+        const rang = (f) => {
+          const i = PHASEN.indexOf(f.phase);
+          return i < 0 ? 99 : i;
+        };
+        const wann = (f) => f.aufgenommenAm?.seconds || f.erstelltAm?.seconds || 0;
+        liste.sort((a, b) => rang(a) - rang(b) || wann(b) - wann(a));
+        setBaustellenFotos(liste);
+      },
+      () => setBaustellenFotos([])
+    );
+    return stop;
   }, [baustelleId]);
 
   // Die Entscheidung des Kunden liegt in einer eigenen, top-level Sammlung —
@@ -233,6 +261,20 @@ export default function NachtragScreen({ route, navigation }) {
       Alert.alert("Fehler", e?.message || fehlerText(e));
     } finally {
       setHochladen(false);
+    }
+  }
+
+  async function fotoUebernehmen(url) {
+    const vorhanden = nachtrag.fotos || [];
+    try {
+      await updateDoc(doc(db, ...pfad), {
+        fotos: vorhanden.includes(url)
+          ? vorhanden.filter((f) => f !== url)
+          : [...vorhanden, url],
+        aktualisiertAm: serverTimestamp(),
+      });
+    } catch (e) {
+      Alert.alert("Fehler", fehlerText(e));
     }
   }
 
@@ -487,7 +529,64 @@ export default function NachtragScreen({ route, navigation }) {
               <Text style={styles.ladeText}>Foto wird hochgeladen …</Text>
             </View>
           ) : (
-            <Knopf titel="Foto hinzufügen" variante="sekundaer" onPress={fotoHinzufuegen} />
+            <>
+              {/* Der Regelfall zuerst: Was der Kunde sehen soll, ist meist
+                  längst fotografiert und liegt in der Baustelle. */}
+              {baustellenFotos.length > 0 ? (
+                <Knopf
+                  titel={
+                    auswahlOffen
+                      ? "Auswahl schließen"
+                      : `Aus der Baustelle wählen (${baustellenFotos.length})`
+                  }
+                  onPress={() => setAuswahlOffen((o) => !o)}
+                />
+              ) : null}
+
+              {auswahlOffen ? (
+                <View style={styles.auswahl}>
+                  {PHASEN.filter((ph) => baustellenFotos.some((f) => f.phase === ph)).map((ph) => (
+                    <View key={ph}>
+                      <Text style={styles.phaseTitel}>{ph}</Text>
+                      <View style={styles.auswahlRaster}>
+                        {baustellenFotos
+                          .filter((f) => f.phase === ph)
+                          .map((f) => {
+                            const drin = (nachtrag.fotos || []).includes(f.url);
+                            return (
+                              <Pressable
+                                key={f.id}
+                                onPress={() => fotoUebernehmen(f.url)}
+                                style={styles.auswahlZelle}
+                              >
+                                <Image
+                                  source={{ uri: f.url }}
+                                  style={[styles.auswahlBild, drin && styles.auswahlBildAktiv]}
+                                />
+                                {drin ? (
+                                  <View style={styles.haken}>
+                                    <Text style={styles.hakenText}>✓</Text>
+                                  </View>
+                                ) : null}
+                                <Text style={styles.auswahlDatum} numberOfLines={1}>
+                                  {datumDe(f.aufgenommenAm || f.erstelltAm)}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <Knopf
+                titel="Neues Foto aufnehmen"
+                variante="sekundaer"
+                onPress={fotoHinzufuegen}
+                style={{ marginTop: baustellenFotos.length > 0 ? 8 : 0 }}
+              />
+            </>
           )
         ) : null}
 
@@ -628,6 +727,30 @@ const styles = StyleSheet.create({
   },
   fotoWegText: { color: "#fff", fontSize: 13, lineHeight: 16 },
   ladeReihe: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12 },
+
+  auswahl: {
+    backgroundColor: farben.bgErhoben,
+    borderRadius: radius.karte,
+    padding: 14,
+    marginTop: 10,
+  },
+  phaseTitel: {
+    ...schrift.headHalb, fontSize: 12, color: farben.textMatt,
+    letterSpacing: 1, textTransform: "uppercase", marginTop: 8, marginBottom: 8,
+  },
+  auswahlRaster: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  auswahlZelle: { width: 88 },
+  auswahlBild: {
+    width: 88, height: 88, borderRadius: 10,
+    backgroundColor: farben.bg, borderWidth: 2, borderColor: "transparent",
+  },
+  auswahlBildAktiv: { borderColor: farben.gruen },
+  haken: {
+    position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 11,
+    backgroundColor: farben.gruen, alignItems: "center", justifyContent: "center",
+  },
+  hakenText: { color: "#0b0b0f", fontSize: 13, lineHeight: 16, fontWeight: "700" },
+  auswahlDatum: { ...schrift.body, fontSize: 10, color: farben.textMatt, marginTop: 3 },
   ladeText: { ...schrift.body, fontSize: 14, color: farben.textWeich },
 
   wartet: { ...schrift.head, fontSize: 19, color: farben.blauHell, letterSpacing: 0.5 },
