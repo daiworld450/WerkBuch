@@ -141,8 +141,12 @@ service cloud.firestore {
       allow update: if angemeldet() && resource.data.handwerkerId == meineUid();
       allow delete: if angemeldet() && resource.data.handwerkerId == meineUid();
 
-      // Angebot: nur noch der Handwerker liest/schreibt, keine Kunden-Freigabe
-      // per Online-Klick mehr — Status trägt der Handwerker selbst ein.
+      // Angebot: Die Angebotskachel wurde am 09.09.2026 aus der App entfernt —
+      // Angebote entstehen im Angebotswerkzeug auf dem Mac. Die Regel bleibt
+      // stehen: Sollten aus der Zeit davor noch Angebotsdaten liegen, sind sie
+      // weiterhin nur für den Inhaber lesbar. Ohne diese Regel fielen sie unter
+      // die weite Sammelregel ganz unten und wären für zugewiesene Mitarbeiter
+      // sichtbar — samt Beträgen.
       match /angebot/{docId} {
         allow read, write: if angemeldet() && istHandwerkerVon(bid);
       }

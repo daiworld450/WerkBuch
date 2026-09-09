@@ -23,7 +23,6 @@ import MasseScreen from "../screens/MasseScreen";
 import MaterialScreen from "../screens/MaterialScreen";
 import TermineScreen from "../screens/TermineScreen";
 import TerminScreen from "../screens/TerminScreen";
-import AngebotScreen from "../screens/AngebotScreen";
 import KalenderScreen from "../screens/KalenderScreen";
 import DokumenteScreen from "../screens/DokumenteScreen";
 import StundenScreen from "../screens/StundenScreen";
@@ -160,11 +159,6 @@ export default function Navigation() {
               name="Dokumente"
               component={DokumenteScreen}
               options={{ title: "Dokumente" }}
-            />
-            <Stack.Screen
-              name="Angebot"
-              component={AngebotScreen}
-              options={{ title: "Angebot" }}
             />
             <Stack.Screen
               name="Kalender"

@@ -38,16 +38,15 @@ Freigegebene Nachträge fließen in die Kalkulation, offene nicht.
 
 ---
 
-## 2. Angebote — auf Ansage wieder entfernt (09.09.)
+## 2. Angebote — nicht mehr Teil der App (09.09.)
 
-Kurzzeitig gab es hier eine zweite Angebotserstellung mit Positionen, Vorlagen
-und DIN-Texten. Der Inhaber hat sie noch am selben Tag gestrichen: **Angebote
-werden im Angebotswerkzeug auf dem Mac geschrieben** (`angebote-werkzeug/`),
-dort liegen Leistungskatalog, Preise und Nummernkreis. Zwei Preislisten sind
-schlimmer als eine an der falschen Stelle.
+Kurzzeitig gab es hier eine Angebotserstellung mit Positionen, Vorlagen und
+DIN-Texten. Der Inhaber hat sie noch am selben Tag gestrichen, danach auch die
+reine Ablage: **Angebote gehören ins Angebotswerkzeug auf dem Mac**
+(`angebote-werkzeug/`). Dort liegen Leistungskatalog, Preise, DIN-Texte und der
+Nummernkreis — an einer Stelle.
 
-Was in WerkBuch bleibt: das fertige PDF bei der Baustelle ablegen, Betrag
-eintragen, Stand pflegen.
+WerkBuch ist damit wieder das, was es sein soll: die Baustellen-App.
 
 ## 3. Baustellenfotos
 

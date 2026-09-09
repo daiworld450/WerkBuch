@@ -464,25 +464,6 @@ export default function BaustelleDetailScreen({ route, navigation }) {
           </Karte>
         ))}
 
-        {/* Angebot — enthält Preise, deshalb nur für den Inhaber. */}
-        {istHandwerker ? (
-          <Karte
-            onPress={() =>
-              navigation.navigate("Angebot", {
-                baustelleId,
-                kundeName: baustelle?.kundeName || "",
-              })
-            }
-            style={styles.einstieg}
-          >
-            <Text style={styles.eSymbol}>📄</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.eTitel}>Angebot</Text>
-              <Text style={styles.eText}>Fertiges PDF ablegen, Betrag und Stand</Text>
-            </View>
-            <Text style={styles.ePfeil}>›</Text>
-          </Karte>
-        ) : null}
 
         {/* Handwerker-Bereich: Status + Löschen */}
         {istHandwerker ? (
