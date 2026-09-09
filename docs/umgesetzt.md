@@ -38,31 +38,16 @@ Freigegebene Nachträge fließen in die Kalkulation, offene nicht.
 
 ---
 
-## 2. Angebote
+## 2. Angebote — auf Ansage wieder entfernt (09.09.)
 
-Gewerk wählen, Maße eintragen, fertig: Aus einer Vorlage entstehen die
-Positionen samt Kurz- und Langtext, den Verweisen auf die einschlägigen
-DIN-Normen und den Richtpreisen.
+Kurzzeitig gab es hier eine zweite Angebotserstellung mit Positionen, Vorlagen
+und DIN-Texten. Der Inhaber hat sie noch am selben Tag gestrichen: **Angebote
+werden im Angebotswerkzeug auf dem Mac geschrieben** (`angebote-werkzeug/`),
+dort liegen Leistungskatalog, Preise und Nummernkreis. Zwei Preislisten sind
+schlimmer als eine an der falschen Stelle.
 
-- **37 Leistungen, 5 Gewerke** — unverändert übernommen aus
-  `angebote-werkzeug/leistungen.json`. Gepflegt wird weiterhin nur diese eine
-  Quelle; `tools/leistungen-uebernehmen.py` holt sie in die App.
-- Positionen ohne Menge fallen weg. Ein Bad ohne Dusche bekommt keine
-  Duschabdichtung ins Angebot.
-- Mengen und Preise einzeln änderbar, Katalog zum Nachlegen.
-- **Angebotsnummern** AN-JJJJ-NNNN, fortlaufend je Jahr, Lücken werden nicht
-  wiederverwendet.
-- **Konditionen als Textbausteine**: 100 € Vor-Ort-Pauschale, bei Auftrag
-  erlassen · 15 % Anzahlung · 2–4 Wochen Vorlauf · 30 Tage Bindefrist ·
-  Ausführung nach den anerkannten Regeln der Technik.
-- **PDF** über den Druckdialog des Browsers, A4, kontrollierte Seitenumbrüche.
-  Eine Position wird nicht zwischen Text und Preis zerschnitten.
-- Der alte Weg — fertiges PDF hochladen — bleibt erhalten.
-
-Ein Musterangebot für ein Komplettbad ergibt 17 Positionen, 6.676,50 € netto,
-7.945,04 € brutto.
-
----
+Was in WerkBuch bleibt: das fertige PDF bei der Baustelle ablegen, Betrag
+eintragen, Stand pflegen.
 
 ## 3. Baustellenfotos
 

@@ -478,7 +478,7 @@ export default function BaustelleDetailScreen({ route, navigation }) {
             <Text style={styles.eSymbol}>📄</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.eTitel}>Angebot</Text>
-              <Text style={styles.eText}>Positionen, DIN-Texte, Konditionen, PDF</Text>
+              <Text style={styles.eText}>Fertiges PDF ablegen, Betrag und Stand</Text>
             </View>
             <Text style={styles.ePfeil}>›</Text>
           </Karte>
