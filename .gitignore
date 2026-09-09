@@ -40,3 +40,5 @@ yarn-error.*
 .env.local
 google-services.json
 GoogleService-Info.plist
+.secrets/
+.lokal-test/

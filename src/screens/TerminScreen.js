@@ -103,6 +103,9 @@ export default function TerminScreen({ route, navigation }) {
   const [endeMinute, setEndeMinute] = useState(0);
   const [notiz, setNotiz] = useState("");
   const [gewaehlteBaustelle, setGewaehlteBaustelle] = useState(baustelleId || null);
+  // Soll das Team diesen Termin sehen? Standard: nein. Der Kalender enthält
+  // auch Büro- und Privattermine, und die gehen niemanden sonst etwas an.
+  const [fuerTeam, setFuerTeam] = useState(false);
 
   const [baustellen, setBaustellen] = useState([]);
   const [pickerAuf, setPickerAuf] = useState(null); // "startTag" | "endeTag" | "startZeit" | "endeZeit"
@@ -159,6 +162,7 @@ export default function TerminScreen({ route, navigation }) {
         setEndeMinute(ende.getMinutes());
         setNotiz(t.notiz || "");
         setGewaehlteBaustelle(t.baustelleId || null);
+        setFuerTeam(Array.isArray(t.sichtbarFuer) && t.sichtbarFuer.length > 0);
         setLaedt(false);
       } catch (e) {
         if (!aktiv) return;
@@ -205,6 +209,10 @@ export default function TerminScreen({ route, navigation }) {
       ganztags,
       art,
       baustelleId: b ? b.id : null,
+      // Die uids kommen aus der Zuweisung der Baustelle — wer dort arbeitet,
+      // sieht den Termin. Ohne verknüpfte Baustelle gibt es niemanden, mit dem
+      // sich etwas teilen ließe.
+      sichtbarFuer: fuerTeam && b ? b.zugewieseneNutzer || [] : [],
       baustelleName: b ? b.name || null : null,
       kundeName: b ? b.kundeName || null : null,
       kundeTelefon: b ? b.kundeTelefon || null : null,
@@ -420,6 +428,31 @@ export default function TerminScreen({ route, navigation }) {
                 />
               ))}
             </View>
+            {/* Für das Team freigeben. Nur sinnvoll, wenn eine Baustelle
+                verknüpft ist — die Zuweisung dort bestimmt, wer den Termin
+                sieht. Standard ist AUS: Im selben Kalender stehen auch Büro-
+                und Privattermine. */}
+            {gewaehlteBaustelle ? (
+              <>
+                <Pressable
+                  onPress={() => setFuerTeam((f) => !f)}
+                  style={[styles.schalterReihe, { marginTop: 10 }]}
+                >
+                  <View style={[styles.schalter, fuerTeam && styles.schalterAn]}>
+                    <Text style={styles.schalterHaken}>{fuerTeam ? "✓" : ""}</Text>
+                  </View>
+                  <Text style={styles.schalterText}>
+                    Für die Mitarbeiter dieser Baustelle sichtbar
+                  </Text>
+                </Pressable>
+                <Text style={styles.hinweis}>
+                  {fuerTeam
+                    ? "Wer dieser Baustelle zugewiesen ist, sieht diesen Termin in seinem Kalender."
+                    : "Der Termin bleibt nur in Ihrem Kalender."}
+                </Text>
+              </>
+            ) : null}
+
             {baustellen.length === 0 ? (
               <Text style={styles.hinweis}>
                 Noch keine Baustelle angelegt — der Termin steht auch ohne

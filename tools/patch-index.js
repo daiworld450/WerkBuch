@@ -30,7 +30,8 @@ let html = fs.readFileSync(indexPfad, 'utf8');
 if (!html.includes('apple-mobile-web-app-title')) {
   // Expo setzt "theme-color" bereits selbst (aus app.json web.themeColor) —
   // hier nicht doppeln, nur die iPhone-/PWA-spezifischen Tags ergänzen.
-  const tags = `\n<link rel="manifest" href="${base}/manifest.json">
+  const tags = `\n<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="${base}/manifest.json">
 <link rel="apple-touch-icon" href="${base}/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">

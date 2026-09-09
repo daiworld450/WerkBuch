@@ -38,6 +38,9 @@ import Knopf from "../components/Knopf";
 import Leerzustand from "../components/Leerzustand";
 import Ladeanzeige from "../components/Ladeanzeige";
 import { PHASEN, aktualisiereZaehler } from "../util/baustelle";
+import { standText } from "../util/warteschlange";
+import { einreihen, abarbeiten, laden as warteschlangeLaden } from "../util/fotoVersand";
+import { datumDe } from "../util/format";
 import fehlerText from "../util/fehler";
 
 export default function FotosScreen({ route, navigation }) {
@@ -53,6 +56,7 @@ export default function FotosScreen({ route, navigation }) {
   const [notiz, setNotiz] = useState("");
   const [laedt, setLaedt] = useState(true);
   const [hochladen, setHochladen] = useState(false);
+  const [wartend, setWartend] = useState([]);
 
   // Kopierschutz aktiv, solange dieser Bildschirm sichtbar ist
   useFocusEffect(
@@ -64,12 +68,28 @@ export default function FotosScreen({ route, navigation }) {
     }, [])
   );
 
+  // Beim Betreten des Bildschirms nachsehen, ob noch etwas vom letzten Mal
+  // ohne Netz liegengeblieben ist — und es dann losschicken.
+  useFocusEffect(
+    useCallback(() => {
+      let aktiv = true;
+      warteschlangeLaden().then((l) => aktiv && setWartend(l));
+      abarbeiten((l) => aktiv && setWartend(l)).catch(() => {});
+      return () => {
+        aktiv = false;
+      };
+    }, [])
+  );
+
   useEffect(() => {
     const stop = onSnapshot(
       collection(db, "baustellen", baustelleId, "fotos"),
       (snap) => {
         const liste = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        liste.sort((a, b) => (b.erstelltAm?.seconds || 0) - (a.erstelltAm?.seconds || 0));
+        // Nach dem AUFNAHMEDATUM sortieren, wo es bekannt ist — sonst stünde
+        // ein abends nachgereichtes Foto vom Morgen ganz oben.
+        const wann = (f) => f.aufgenommenAm?.seconds || f.erstelltAm?.seconds || 0;
+        liste.sort((a, b) => wann(b) - wann(a));
         setFotos(liste);
         setLaedt(false);
       },
@@ -91,7 +111,7 @@ export default function FotosScreen({ route, navigation }) {
       quelle("galerie");
       return;
     }
-    Alert.alert("Foto hinzufügen", "Woher möchten Sie das Foto?", [
+    Alert.alert("Fotos hinzufügen", "Woher möchten Sie die Fotos?", [
       { text: "Kamera", onPress: () => quelle("kamera") },
       { text: "Galerie", onPress: () => quelle("galerie") },
       { text: "Abbrechen", style: "cancel" },
@@ -107,55 +127,98 @@ export default function FotosScreen({ route, navigation }) {
           Alert.alert("Kein Zugriff", "Bitte erlauben Sie den Kamerazugriff in den Einstellungen.");
           return;
         }
-        erg = await ImagePicker.launchCameraAsync({ quality: 1 });
+        erg = await ImagePicker.launchCameraAsync({ quality: 1, exif: true });
       } else {
         const p = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!p.granted) {
           Alert.alert("Kein Zugriff", "Bitte erlauben Sie den Fotozugriff in den Einstellungen.");
           return;
         }
-        erg = await ImagePicker.launchImageLibraryAsync({ quality: 1 });
+        // Mehrere auf einmal: Auf der Baustelle macht man selten ein einzelnes
+        // Bild, und jedes einzeln auszuwählen kostet mehr Zeit als das
+        // Fotografieren selbst.
+        erg = await ImagePicker.launchImageLibraryAsync({
+          quality: 1,
+          exif: true,
+          allowsMultipleSelection: true,
+          selectionLimit: 20,
+        });
       }
       if (erg.canceled || !erg.assets?.length) return;
-      await hochladenFoto(erg.assets[0].uri);
+      await hochladenFotos(erg.assets);
     } catch (e) {
       Alert.alert("Fehler", fehlerText(e));
     }
   }
 
-  async function hochladenFoto(uri) {
+  // Das Aufnahmedatum aus den Bilddaten (EXIF) lesen.
+  //
+  // Bis hierher ging es verloren: manipulateAsync entfernt beim Verkleinern
+  // ALLE Metadaten. Für den Standort ist das genau richtig — Kundenfotos
+  // sollen keine Koordinaten mit sich tragen. Für das Datum war es ein
+  // Verlust: Angezeigt wurde der Zeitpunkt des Hochladens, und wer abends
+  // überträgt, hatte den falschen Tag an der Bauphase stehen.
+  //
+  // Also: das Datum VOR dem Verkleinern herauslesen und getrennt speichern.
+  // Der Standort bleibt draußen, das Datum bleibt erhalten.
+  function aufnahmeDatum(asset) {
+    const exif = asset?.exif || {};
+    // EXIF schreibt "2026:09:01 14:22:33" — mit Doppelpunkten im Datumsteil.
+    const roh = exif.DateTimeOriginal || exif.DateTimeDigitized || exif.DateTime;
+    if (typeof roh === "string") {
+      const t = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(roh.trim());
+      if (t) {
+        const d = new Date(+t[1], +t[2] - 1, +t[3], +t[4], +t[5], +t[6]);
+        if (!isNaN(d.getTime())) return d.toISOString();
+      }
+    }
+    // Manche Geräte liefern stattdessen einen Zeitstempel in Millisekunden.
+    if (typeof asset?.creationTime === "number" && asset.creationTime > 0) {
+      return new Date(asset.creationTime).toISOString();
+    }
+    return null;
+  }
+
+  async function hochladenFotos(assets) {
     setHochladen(true);
+    let eingereiht = 0;
     try {
-      // Auf max. 1600 px Breite verkleinern, Qualität 0.7 (Base64 direkt mitnehmen)
-      const bearbeitet = await ImageManipulator.manipulateAsync(
-        uri,
-        [{ resize: { width: 1600 } }],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-      );
+      for (const asset of assets) {
+        const genommenAm = aufnahmeDatum(asset);
 
-      const { url, publicId } = await ladeDateiHoch(bearbeitet.uri, {
-        typ: "image",
-        dateiname: `${baustelleId}_${phase}_${Date.now()}.jpg`,
-        base64: bearbeitet.base64,
-      });
+        // Verkleinern und Metadaten abstreifen — inklusive Standort.
+        const bearbeitet = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: { width: 1600 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
 
-      await addDoc(collection(db, "baustellen", baustelleId, "fotos"), {
-        url,
-        publicId,
-        phase,
-        notiz: notiz.trim(),
-        hochgeladenVon: profil.id,
-        erstelltAm: serverTimestamp(),
-      });
+        // IMMER erst in die Warteschlange, nie direkt senden. Dadurch gibt es
+        // nur EINEN Weg ins Netz — und der überlebt einen Funkloch-Moment.
+        const erg = await einreihen({
+          baustelleId,
+          phase,
+          notiz: notiz.trim(),
+          base64: bearbeitet.base64,
+          dateiname: `${baustelleId}_${phase}_${Date.now()}_${eingereiht}.jpg`,
+          aufgenommenAm: genommenAm,
+          hochgeladenVon: profil?.id || null,
+        });
+
+        if (!erg.ok) {
+          setWartend(erg.liste);
+          Alert.alert("Nicht alle Fotos übernommen", erg.grund);
+          break;
+        }
+        setWartend(erg.liste);
+        eingereiht += 1;
+      }
 
       setNotiz("");
-      await aktualisiereZaehler(baustelleId);
+      // Und jetzt raus damit, soweit das Netz mitspielt.
+      await abarbeiten(setWartend);
     } catch (e) {
-      // Upload-Fehler mit konkreter Ursache anzeigen (hilft bei der Diagnose)
-      const text = e?.message?.startsWith("Upload fehlgeschlagen")
-        ? e.message
-        : fehlerText(e);
-      Alert.alert("Upload fehlgeschlagen", text);
+      Alert.alert("Fehler", fehlerText(e));
     } finally {
       setHochladen(false);
     }
@@ -173,6 +236,14 @@ export default function FotosScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
+      {/* Was noch auf Empfang wartet */}
+      {wartend.length > 0 ? (
+        <Pressable onPress={() => abarbeiten(setWartend)} style={styles.wartenLeiste}>
+          <Text style={styles.wartenText}>{standText(wartend)}</Text>
+          <Text style={styles.wartenHinweis}>Tippen zum erneuten Versuch</Text>
+        </Pressable>
+      ) : null}
+
       {/* Phasen-Chips */}
       <View>
         <ScrollView
@@ -205,10 +276,10 @@ export default function FotosScreen({ route, navigation }) {
             {hochladen ? (
               <View style={styles.uploadReihe}>
                 <ActivityIndicator color={farben.rot} />
-                <Text style={styles.uploadText}>Foto wird hochgeladen …</Text>
+                <Text style={styles.uploadText}>Fotos werden übernommen …</Text>
               </View>
             ) : (
-              <Knopf titel="Foto hinzufügen" onPress={fotoWaehlen} variante="sekundaer" />
+              <Knopf titel="Fotos hinzufügen" onPress={fotoWaehlen} variante="sekundaer" />
             )}
           </View>
         ) : null}
@@ -230,6 +301,9 @@ export default function FotosScreen({ route, navigation }) {
               <Pressable key={f.id} style={styles.zelle} onPress={() => oeffneViewer(i)}>
                 <Image source={{ uri: f.url }} style={styles.bild} />
                 {f.notiz ? <Text style={styles.notiz} numberOfLines={2}>{f.notiz}</Text> : null}
+                <Text style={styles.datum}>
+                  {datumDe(f.aufgenommenAm || f.erstelltAm)}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -257,4 +331,14 @@ const styles = StyleSheet.create({
     borderColor: farben.linie,
   },
   notiz: { ...schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 6 },
+  datum: { ...schrift.body, fontSize: 11, color: farben.textMatt, marginTop: 3 },
+  wartenLeiste: {
+    backgroundColor: farben.auswahlBg,
+    borderBottomWidth: 1,
+    borderBottomColor: farben.linie,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  wartenText: { ...schrift.bodyMed, fontSize: 13, color: farben.text },
+  wartenHinweis: { ...schrift.body, fontSize: 11, color: farben.textMatt, marginTop: 2 },
 });

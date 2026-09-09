@@ -207,7 +207,7 @@ export const FIRMA = {
   // eingetragenen Link würde die Bewertungs-E-Mail (S13, siehe mail.js
   // bewertungAnfragen) einen kaputten Link verschicken — deshalb prüft
   // bewertungAnfordern() in portal.js diesen Platzhalter vorher ab.
-  googleBewertungsLink: "PLATZHALTER_GOOGLE_BEWERTUNGSLINK",
+  googleBewertungsLink: "https://www.google.com/maps/place//data=!4m3!3m2!1s0x47b8c1e16ee340bf:0xd14070e51d5d33e7!12e1",
 };
 
 export default {

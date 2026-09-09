@@ -28,6 +28,12 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm ci
 
+      # Erst prüfen, dann veröffentlichen. Schlägt ein Test fehl, bricht der
+      # Lauf hier ab und der bisherige Stand bleibt live — genau so soll es
+      # sein, sobald die App Preise rechnet und Freigaben protokolliert.
+      - name: Rechen- und Freigabelogik prüfen
+        run: npm test
+
       - name: Web-Build erzeugen (inkl. PWA-Tags und GitHub-Pages-Basispfad)
         run: npm run build:web
 

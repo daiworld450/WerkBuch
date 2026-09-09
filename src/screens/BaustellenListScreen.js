@@ -23,6 +23,7 @@ import {
   StyleSheet,
   FlatList,
   Pressable,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
@@ -39,6 +40,7 @@ import Leerzustand from "../components/Leerzustand";
 import Ladeanzeige from "../components/Ladeanzeige";
 import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
+import { VERSION } from "../version";
 
 export default function BaustellenListScreen({ navigation }) {
   const { profil, abmelden, istHandwerker, istMitarbeiter } = useAuth();
@@ -173,6 +175,26 @@ export default function BaustellenListScreen({ navigation }) {
           )
         }
         contentContainerStyle={styles.liste}
+        ListFooterComponent={
+          // Welcher Stand hier gerade läuft. Klingt nach Kleinkram, ist es
+          // nicht: Eine installierte Web-App hält die alte Fassung hartnäckig
+          // im Zwischenspeicher. Am 05.09. hat genau das eine halbe Stunde
+          // Fehlersuche gekostet — der Kalender war längst da, im Browser lag
+          // aber noch die Fassung davor. Ein Tippen darauf lädt neu.
+          <Pressable
+            onPress={() => {
+              if (Platform.OS === "web" && typeof window !== "undefined") {
+                window.location.reload(true);
+              }
+            }}
+            hitSlop={10}
+          >
+            <Text style={styles.stand}>
+              Stand {VERSION.stand}
+              {Platform.OS === "web" ? "  ·  tippen zum Neuladen" : ""}
+            </Text>
+          </Pressable>
+        }
       />
 
       {istHandwerker && baustellen.length > 0 ? (
@@ -241,6 +263,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     minWidth: 46,
     textAlign: "right",
+  },
+  stand: {
+    ...schrift.body,
+    fontSize: 11,
+    color: farben.textMatt,
+    textAlign: "center",
+    marginTop: 26,
   },
   fussLeiste: {
     padding: 16,

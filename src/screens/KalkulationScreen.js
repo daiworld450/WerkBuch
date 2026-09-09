@@ -19,6 +19,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
 } from "react-native";
 import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -36,6 +37,7 @@ import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
 import { euroDe, mengeDe } from "../util/format";
 import { kalkuliere, budgetAmpel, zahlOderNull } from "../util/kalkulation";
+import { summe as nachtragSumme, euroAusCent } from "../util/nachtrag";
 
 const AMPEL_FARBE = {
   gruen: farben.gruen,
@@ -73,6 +75,7 @@ export default function KalkulationScreen({ route, navigation }) {
   const [stunden, setStunden] = useState([]);
   const [material, setMaterial] = useState([]);
   const [kosten, setKosten] = useState([]);
+  const [nachtraege, setNachtraege] = useState([]);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState("");
 
@@ -132,6 +135,11 @@ export default function KalkulationScreen({ route, navigation }) {
         (s) => setKosten(s.docs.map((d) => d.data())),
         () => setKosten([])
       ),
+      onSnapshot(
+        collection(db, "baustellen", baustelleId, "nachtraege"),
+        (s) => setNachtraege(s.docs.map((d) => d.data())),
+        () => setNachtraege([])
+      ),
     ];
     return () => stops.forEach((s) => s());
   }, [baustelleId, istHandwerker]);
@@ -161,6 +169,10 @@ export default function KalkulationScreen({ route, navigation }) {
       </SafeAreaView>
     );
   }
+
+  // Nur freigegebene und bereits abgerechnete Nachträge — ein offener Nachtrag
+  // ist keine Forderung und darf in keiner Umsatzzahl auftauchen.
+  const freigegeben = nachtragSumme(nachtraege, ["freigegeben", "abgerechnet"]);
 
   if (laedt) return <Ladeanzeige text="Kalkulation wird geladen …" />;
 
@@ -274,6 +286,33 @@ export default function KalkulationScreen({ route, navigation }) {
           {/* Eingabe */}
           <Karte style={{ marginTop: 8 }}>
             <Text style={styles.blockTitel}>Auftragssumme und Budget</Text>
+            {freigegeben.anzahl > 0 ? (
+              <View style={styles.nachtragKasten}>
+                <Text style={styles.nachtragTitel}>
+                  {freigegeben.anzahl === 1
+                    ? "1 freigegebener Nachtrag"
+                    : `${freigegeben.anzahl} freigegebene Nachträge`}
+                </Text>
+                <Text style={styles.nachtragBetrag}>
+                  {euroAusCent(freigegeben.nettoCent)} netto
+                </Text>
+                <Text style={styles.nachtragText}>
+                  Diese Beträge hat der Kunde nachweisbar beauftragt. Sie gehören zum
+                  Umsatz dieser Baustelle — hinzugerechnet wird aber nicht automatisch,
+                  damit nichts doppelt zählt, wenn die Schlussrechnung schon steht.
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    const bisher = zahlOderNull(umsatz) || 0;
+                    const neu = bisher + freigegeben.nettoCent / 100;
+                    setUmsatz(String(neu.toFixed(2)).replace(".", ","));
+                  }}
+                >
+                  <Text style={styles.nachtragKnopf}>Zum Umsatz addieren ›</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             <Feld
               label="Umsatz € (was der Kunde zahlt)"
               wert={umsatz}
@@ -328,6 +367,21 @@ export default function KalkulationScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
+  nachtragKasten: {
+    backgroundColor: farben.gruenRing,
+    borderWidth: 1,
+    borderColor: farben.gruen,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 18,
+  },
+  nachtragTitel: {
+    ...schrift.headHalb, fontSize: 13, color: farben.gruen,
+    letterSpacing: 0.5, textTransform: "uppercase",
+  },
+  nachtragBetrag: { ...schrift.head, fontSize: 24, color: farben.text, marginTop: 4 },
+  nachtragText: { ...schrift.body, fontSize: 12, color: farben.textWeich, lineHeight: 19, marginTop: 8 },
+  nachtragKnopf: { ...schrift.bodyMed, fontSize: 14, color: farben.gruen, marginTop: 12 },
   safe: { flex: 1, backgroundColor: farben.bg },
   scroll: { padding: 20, paddingBottom: 48 },
   name: {

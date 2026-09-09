@@ -116,17 +116,19 @@ export default function KalenderScreen({ navigation }) {
   }, [profil, istHandwerker, istMitarbeiter]);
 
   useEffect(() => {
-    // Termine gibt es nur für den Inhaber. Für den Mitarbeiter die
-    // Ladeanzeige sofort beenden, sonst bliebe sie ewig stehen.
-    if (!profil || !istHandwerker) {
+    if (!profil || (!istHandwerker && !istMitarbeiter)) {
       setTermine([]);
       setTermineLaedt(false);
       return;
     }
-    const q = query(
-      collection(db, "termine"),
-      where("handwerkerId", "==", profil.id)
-    );
+    // Der Inhaber sieht ALLE seine Termine, auch Büro und Privat.
+    // Der Mitarbeiter sieht nur die, die ausdrücklich für ihn freigegeben
+    // wurden (Feld sichtbarFuer). Beides sind Ein-Feld-Abfragen; die
+    // Firestore-Regel setzt dieselbe Trennung noch einmal durch, damit sie
+    // nicht an dieser Abfrage hängt.
+    const q = istHandwerker
+      ? query(collection(db, "termine"), where("handwerkerId", "==", profil.id))
+      : query(collection(db, "termine"), where("sichtbarFuer", "array-contains", profil.id));
     const stop = onSnapshot(
       q,
       (snap) => {
@@ -151,7 +153,7 @@ export default function KalenderScreen({ navigation }) {
       }
     );
     return stop;
-  }, [profil, istHandwerker]);
+  }, [profil, istHandwerker, istMitarbeiter]);
 
   const heute = useMemo(() => tagOhneZeit(new Date()), []);
 

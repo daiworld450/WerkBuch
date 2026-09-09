@@ -86,11 +86,16 @@ const EINSTIEGE = [
   { key: "Stunden", symbol: "⏱", titel: "Stunden", text: "Wer wann wie lange gearbeitet hat" },
   { key: "Kosten", symbol: "🧾", titel: "Kosten", text: "Fahrt, Werkzeug, Fremdleistung", nurInhaber: true },
   { key: "Kalkulation", symbol: "📊", titel: "Kalkulation", text: "Umsatz, Kosten, Gewinn dieser Baustelle", nurInhaber: true },
+  // Der Unterschied zu plancraft, Craftnote und ToolTime: eine zusätzliche
+  // Leistung wird nicht mündlich vereinbart, sondern vom Kunden per Link
+  // freigegeben — nachweisbar.
+  { key: "Nachtraege", symbol: "➕", titel: "Nachträge", text: "Zusätzliche Leistungen, vom Kunden freigegeben", nurInhaber: true },
   // Termine liegen in der top-level Sammlung "termine" und sind über
   // handwerkerId an den Inhaber gebunden — der Mitarbeiter kann sie nicht
   // lesen, deshalb bekommt er die Kachel auch nicht.
   { key: "Termine", symbol: "📅", titel: "Termine", text: "Zeitplan der Sanierung", nurInhaber: true },
   { key: "Dokumente", symbol: "📎", titel: "Dokumente", text: "Beliebige Dateien: Rechnungen, Kalkulationen, Pläne", nurInhaber: true },
+  { key: "Bericht", symbol: "📘", titel: "Projektbericht", text: "Die ganze Sanierung als PDF für den Kunden", nurInhaber: true },
 ];
 
 export default function BaustelleDetailScreen({ route, navigation }) {
@@ -473,7 +478,7 @@ export default function BaustelleDetailScreen({ route, navigation }) {
             <Text style={styles.eSymbol}>📄</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.eTitel}>Angebot</Text>
-              <Text style={styles.eText}>PDF hochladen</Text>
+              <Text style={styles.eText}>Positionen, DIN-Texte, Konditionen, PDF</Text>
             </View>
             <Text style={styles.ePfeil}>›</Text>
           </Karte>

@@ -7,7 +7,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
-    "build:web": "expo export --platform web && node tools/copy-public.js && node tools/patch-index.js --base=/WerkBuch"
+    "build:web": "node tools/version-schreiben.js && expo export --platform web && node tools/copy-public.js && node tools/patch-index.js --base=/WerkBuch",
+    "test": "node --test tests/*.test.cjs",
+    "veroeffentlichen": "bash tools/veroeffentlichen.sh"
   },
   "dependencies": {
     "@expo-google-fonts/rajdhani": "^0.2.3",

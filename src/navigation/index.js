@@ -31,6 +31,9 @@ import KostenScreen from "../screens/KostenScreen";
 import KalkulationScreen from "../screens/KalkulationScreen";
 import PersonenScreen from "../screens/PersonenScreen";
 import AuswertungScreen from "../screens/AuswertungScreen";
+import NachtraegeScreen from "../screens/NachtraegeScreen";
+import NachtragScreen from "../screens/NachtragScreen";
+import BerichtScreen from "../screens/BerichtScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -204,6 +207,25 @@ export default function Navigation() {
               name="Auswertung"
               component={AuswertungScreen}
               options={{ title: "Auswertung" }}
+            />
+            {/* Nachträge: zusätzliche Leistungen mit Freigabe durch den
+                Kunden. Die Kundenseite selbst liegt NICHT in dieser
+                Navigation — sie wird in App.js noch vor der Anmeldung
+                ausgeliefert, damit ein Kunde gar nicht erst hierher kommt. */}
+            <Stack.Screen
+              name="Nachtraege"
+              component={NachtraegeScreen}
+              options={{ title: "Nachträge" }}
+            />
+            <Stack.Screen
+              name="Nachtrag"
+              component={NachtragScreen}
+              options={{ title: "Nachtrag" }}
+            />
+            <Stack.Screen
+              name="Bericht"
+              component={BerichtScreen}
+              options={{ title: "Projektbericht" }}
             />
           </>
         )}

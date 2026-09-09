@@ -9,9 +9,14 @@ service cloud.firestore {
     function istHandwerkerVon(bid) {
       return get(/databases/$(database)/documents/baustellen/$(bid)).data.handwerkerId == meineUid();
     }
-    function istKundeVon(bid) {
-      return get(/databases/$(database)/documents/baustellen/$(bid)).data.kundeId == meineUid();
-    }
+    // Hier stand bis zum 09.09.2026 istKundeVon(bid). Die Prüfung hing an
+    // baustellen/{bid}.kundeId — einem Feld, das seit dem Ausbau des
+    // Kundenteils niemand mehr schreibt. Die Regel lief damit ins Leere und
+    // kostete bei jeder Auswertung einen zusätzlichen Dokumentabruf.
+    //
+    // Der Kunde kommt jetzt auf einem anderen Weg herein: Er meldet sich gar
+    // nicht an, sondern öffnet einen Link, dessen Schlüssel selbst der
+    // Nachweis der Berechtigung ist (siehe freigabeLinks ganz unten).
 
     // Ist der Angemeldete dieser Baustelle als Mitarbeiter zugewiesen?
     //
@@ -38,7 +43,7 @@ service cloud.firestore {
     function eigeneRegeln() {
       return ['angebot', 'freigaben', 'protokoll', 'guthaben',
               'zulagenBestellungen', 'nachrichten', 'dokumente',
-              'material', 'kosten', 'stunden'];
+              'material', 'kosten', 'stunden', 'nachtraege'];
     }
 
     function istHandwerker() {
@@ -57,9 +62,14 @@ service cloud.firestore {
     // ganzen Betrieb betreffen (aktuell nur der Zulagenkatalog: eine
     // GLOBALE Sammlung ohne Baustellenbezug, aus der der Server direkt die
     // Rechnungsgrundlage lädt), reicht "rolle" deshalb nicht als Schutz.
+    //
+    // Korrigiert am 09.09.2026: Hier stand berisabau@gmail.com. Dieses Konto
+    // wurde am 05.09. gelöscht — die Prüfung traf damit auf niemanden mehr zu
+    // und der Zulagenkatalog war für alle schreibgesperrt, ohne dass es
+    // auffiel. Jetzt steht hier das tatsächlich genutzte Betriebskonto.
     function istBesitzer() {
       return angemeldet() &&
-        request.auth.token.email == 'berisabau@gmail.com' &&
+        request.auth.token.email == 'info@berisabau.de' &&
         request.auth.token.email_verified == true;
     }
 
@@ -85,15 +95,21 @@ service cloud.firestore {
     // Baustelle verknüpft ist. Die optionale baustelleId ist reine
     // Anzeige-Information und gewährt keinerlei zusätzlichen Zugriff.
     //
-    // BEKANNTE GRENZE: Der Mitarbeiter sieht diese Termine NICHT — sie sind
-    // fest an handwerkerId gebunden, und eine Baustellen-Zuweisung ändert
-    // daran nichts. Im Kalender sieht er nur die Zeiträume seiner
-    // Baustellen. Bewusst so gelassen: Der Kalender enthält auch private
-    // und Büro-Termine des Inhabers. Wer das ändern will, braucht ein
-    // eigenes Feld auf dem Termin (etwa sichtbarFuer[]) statt einer
-    // Aufweichung dieser Regel.
+    // SICHTBARKEIT FÜR MITARBEITER (ergänzt am 09.09.2026):
+    // Der Kalender enthält auch Büro- und Privattermine des Inhabers. Deshalb
+    // wird NICHT pauschal freigegeben, sondern je Termin: Das Feld
+    // sichtbarFuer[] enthält die uids, die ihn außerdem sehen dürfen.
+    // Geschrieben wird es ausschließlich vom Inhaber (create/update unten
+    // verlangen handwerkerId == eigene uid) — ein Mitarbeiter kann sich also
+    // nicht selbst in fremde Termine eintragen.
+    //
+    // Genau dieser Weg war hier schon als der richtige vermerkt; jetzt ist er
+    // gebaut.
     match /termine/{terminId} {
-      allow read: if angemeldet() && resource.data.handwerkerId == meineUid();
+      allow read: if angemeldet() && (
+        resource.data.handwerkerId == meineUid() ||
+        meineUid() in resource.data.get('sichtbarFuer', [])
+      );
       allow create: if angemeldet() && request.resource.data.handwerkerId == meineUid();
       allow update, delete: if angemeldet() && resource.data.handwerkerId == meineUid();
     }
@@ -193,8 +209,21 @@ service cloud.firestore {
       //
       // Ohne diese Sperre wäre der ganze Nachweis wertlos: Wer nachträglich
       // ändern kann, was der Kunde freigegeben hat, kann nichts belegen.
+      // -------------------------------------------------------- Nachträge
+      // Zusätzliche Leistungen, die während der Bauzeit dazukommen: Titel,
+      // Beschreibung, Menge, Einheit, Einzelpreis in CENT, dazu Fotos und der
+      // Stand (offen → gesendet → freigegeben/abgelehnt → abgerechnet).
+      //
+      // Nur der Inhaber schreibt hier. Der Kunde sieht einen Nachtrag NIE über
+      // diese Sammlung, sondern ausschließlich über den eingefrorenen Stand in
+      // freigabeLinks (ganz unten) — er bekommt damit keinerlei Zugriff auf
+      // die Baustelle selbst.
+      match /nachtraege/{nid} {
+        allow read, write: if angemeldet() && istHandwerkerVon(bid);
+      }
+
       match /freigaben/{freigabeId} {
-        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow read: if angemeldet() && istHandwerkerVon(bid);
         allow write: if false;
       }
 
@@ -204,12 +233,12 @@ service cloud.firestore {
       }
 
       match /guthaben/{eintragId} {
-        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow read: if angemeldet() && istHandwerkerVon(bid);
         allow write: if false;
       }
 
       match /zulagenBestellungen/{bestellId} {
-        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow read: if angemeldet() && istHandwerkerVon(bid);
         // Nur der Handwerker darf einen Sonderwunsch bepreisen bzw. eine
         // wartende Bestellung freigeben — und dabei ausschließlich die dafür
         // nötigen Felder anfassen, nicht Positionen oder Beträge der
@@ -222,7 +251,7 @@ service cloud.firestore {
       }
 
       match /nachrichten/{nachrichtId} {
-        allow read: if angemeldet() && (istHandwerkerVon(bid) || istKundeVon(bid));
+        allow read: if angemeldet() && istHandwerkerVon(bid);
         allow create: if angemeldet() && istHandwerkerVon(bid);
         allow update, delete: if false;
       }
@@ -245,7 +274,7 @@ service cloud.firestore {
       // hier eintragen — sonst greift wieder diese weite Regel.
       match /{unterordner}/{docId} {
         allow read: if angemeldet() &&
-          (istHandwerkerVon(bid) || istKundeVon(bid) || istZugewiesen(bid)) &&
+          (istHandwerkerVon(bid) || istZugewiesen(bid)) &&
           !(unterordner in eigeneRegeln());
         allow write: if angemeldet() &&
           (istHandwerkerVon(bid) || istZugewiesen(bid)) &&
@@ -312,6 +341,88 @@ service cloud.firestore {
     // Ausschließlich die Cloud Functions greifen darauf zu.
     match /magicLinks/{tokenAbdruck} {
       allow read, write: if false;
+    }
+
+    // ================================================== Freigabe durch den Kunden
+    //
+    // Das Herzstück des Nachtragswegs — und die einzige Stelle, an der jemand
+    // ohne Anmeldung etwas zu sehen bekommt. Deshalb hier ausführlicher.
+    //
+    // GRUNDGEDANKE: Der Kunde bekommt keinen Zugang zur Baustelle. Er bekommt
+    // einen Link, und in dessen Dokument steht bereits ALLES, was er sehen
+    // soll — als eingefrorene Kopie. Er liest nie in baustellen/ hinein. Damit
+    // kann über diesen Weg auch nichts durchsickern, was ihn nichts angeht:
+    // keine Einkaufspreise, keine Stunden, keine anderen Kunden.
+    //
+    // WARUM OHNE ANMELDUNG: Ein Kunde, der auf der Baustelle steht und eine
+    // zusätzliche Leistung freigeben soll, installiert keine App und legt kein
+    // Passwort an. Der 32-stellige Schlüssel IM PFAD ist der Berechtigungs-
+    // nachweis. Er stammt aus einer kryptografischen Zufallsquelle; das
+    // Alphabet hat 57 Zeichen, macht 57^32 Möglichkeiten. Raten scheidet aus.
+    match /freigabeLinks/{schluessel} {
+      // get liest GENAU EIN Dokument, dessen Kennung man kennen muss.
+      // list bleibt gesperrt — sonst könnte man sich die Sammlung auflisten
+      // lassen und käme ganz ohne Schlüssel an jeden Nachtrag.
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if angemeldet() &&
+        request.resource.data.handwerkerId == meineUid();
+
+      // NACH DEM ANLEGEN UNVERÄNDERLICH, bis auf das Zurückziehen.
+      //
+      // Das ist die Regel, an der die Beweiskraft hängt. Wäre der gezeigte
+      // Stand nachträglich änderbar, könnte man nach der Freigabe den Preis
+      // hochsetzen und behaupten, der Kunde habe das so freigegeben. Der
+      // Nachweis wäre wertlos — und zwar genau in dem Moment, in dem man ihn
+      // braucht. Deshalb darf hier auch der Inhaber nur noch zurückziehen.
+      allow update: if angemeldet() &&
+        resource.data.handwerkerId == meineUid() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['widerrufen', 'widerrufenAm']);
+
+      allow delete: if angemeldet() && resource.data.handwerkerId == meineUid();
+    }
+
+    // Die Entscheidung des Kunden. Ein Dokument je Link, mit demselben
+    // Schlüssel als Kennung — dadurch kann es EINE Entscheidung geben und
+    // keine zweite: ein erneuter Klick trifft auf ein vorhandenes Dokument und
+    // wird abgewiesen. Das ist zugleich der Schutz gegen Doppelklick und gegen
+    // Wiederholung nach einem Netzabbruch.
+    match /freigabeEntscheidungen/{schluessel} {
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if
+        // 1. Es muss einen echten Link mit diesem Schlüssel geben.
+        exists(/databases/$(database)/documents/freigabeLinks/$(schluessel)) &&
+        // 2. Er darf nicht zurückgezogen sein …
+        get(/databases/$(database)/documents/freigabeLinks/$(schluessel))
+          .data.get('widerrufen', false) == false &&
+        // 3. … und nicht abgelaufen.
+        request.time < get(/databases/$(database)/documents/freigabeLinks/$(schluessel))
+          .data.gueltigBis &&
+        // 4. DER ENTSCHEIDENDE PUNKT: Freigegeben wird genau der Stand, der im
+        //    Link steht. Der Abdruck ist die Prüfsumme über alles Gezeigte —
+        //    Betrag, Text, Fotos. Stimmt er nicht überein, wird abgewiesen,
+        //    statt die Freigabe stillschweigend auf etwas anderes zu beziehen.
+        request.resource.data.abdruck ==
+          get(/databases/$(database)/documents/freigabeLinks/$(schluessel)).data.abdruck &&
+        // 5. Nur diese beiden Ausgänge.
+        request.resource.data.ergebnis in ['freigegeben', 'abgelehnt'] &&
+        // 6. Der Zeitstempel kommt vom SERVER, nicht vom Gerät des Kunden.
+        //    Eine falsch gestellte Uhr — oder ein absichtlich zurückgestelltes
+        //    Handy — darf den Nachweis nicht datieren.
+        request.resource.data.zeitpunkt == request.time &&
+        // 7. Der ANGEZEIGTE TEXT IM WORTLAUT wird mitgespeichert, nicht bloß
+        //    ein Verweis auf eine Vorlage. Ändert sich die Vorlage später,
+        //    bleibt dieser Beleg, wie er war.
+        request.resource.data.wortlaut is string &&
+        request.resource.data.wortlaut.size() > 50 &&
+        request.resource.data.wortlaut.size() < 20000;
+
+      // Unveränderlich. Für beide Seiten, ohne Ausnahme, für immer.
+      allow update, delete: if false;
     }
   }
 }

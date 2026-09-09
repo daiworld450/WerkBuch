@@ -121,7 +121,7 @@ export default function FotoViewerScreen({ route, navigation }) {
         {aktuell?.notiz ? <Text style={styles.notiz}>{aktuell.notiz}</Text> : null}
         <Text style={styles.datum}>
           {aktuell?.phase ? `${aktuell.phase} · ` : ""}
-          {datumDe(aktuell?.erstelltAm)}
+          {datumDe(aktuell?.aufgenommenAm || aktuell?.erstelltAm)}
         </Text>
         {darfBearbeiten && aktuell ? (
           <Pressable onPress={loeschenFragen} style={styles.loeschen} hitSlop={8}>
