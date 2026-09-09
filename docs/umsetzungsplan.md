@@ -1,7 +1,20 @@
 # Umsetzungsplan WerkBuch
 
-**Stand:** 08.09.2026 · **Grundlage:** `docs/bestandsaufnahme.md`
-**Status: Entwurf — noch nichts umgesetzt, kein Code geändert.**
+**Stand:** 09.09.2026 · **Grundlage:** `docs/bestandsaufnahme.md`
+
+> **Dieser Plan ist abgearbeitet.** Was am 08.09. als Entwurf entstand, ist am
+> 09.09. gebaut, geprüft und live. Der Plan bleibt als Begründung stehen —
+> was aus jeder Stufe geworden ist, steht in `docs/umgesetzt.md`.
+>
+> Zwei Entscheidungen wurden dabei getroffen, statt sie offen zu lassen:
+> * **Stufe 4 wurde als Weg B gebaut** (Angebot in WerkBuch), nicht als Weg A.
+>   Grund: Weg A hätte verlangt, dass der Mac läuft — auf der Baustelle steht
+>   aber nur das Handy. Der Leistungskatalog wird trotzdem nicht doppelt
+>   gepflegt: er wird aus `angebote-werkzeug/leistungen.json` übernommen.
+> * **Die Kundenfreigabe läuft ohne den Cloudflare-Worker**, direkt über
+>   Firestore-Regeln. Grund: Für den Worker fehlt eine Cloudflare-Anmeldung,
+>   die nur der Inhaber selbst vornehmen kann. Der gewählte Weg braucht sie
+>   nicht — und ist eine Abhängigkeit weniger.
 
 ---
 
