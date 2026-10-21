@@ -171,6 +171,7 @@ export default function DokumenteScreen({ route, navigation }) {
               <View style={styles.kopf}>
                 <Text style={styles.symbol}>📄</Text>
                 <View style={{ flex: 1 }}>
+                  {d.kategorie ? <Text style={styles.kategorie}>{d.kategorie}</Text> : null}
                   <Text style={styles.name} numberOfLines={1}>{d.name}</Text>
                   <Text style={styles.info}>
                     {datumDe(d.hochgeladenAm)}
@@ -197,6 +198,10 @@ const styles = StyleSheet.create({
   kopf: { flexDirection: "row", alignItems: "center", gap: 12 },
   symbol: { fontSize: 26 },
   name: { ...schrift.head, fontSize: groessen.h3, color: farben.text, letterSpacing: 0.5 },
+  kategorie: {
+    ...schrift.head, fontSize: 11, color: farben.rot, marginBottom: 2,
+    textTransform: "uppercase", letterSpacing: 0.5,
+  },
   info: { ...schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 2 },
   aktionen: { flexDirection: "row", gap: 10, marginTop: 14 },
   aktionsKnopf: { flex: 1, paddingVertical: 12 },

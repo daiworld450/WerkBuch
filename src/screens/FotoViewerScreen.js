@@ -12,6 +12,8 @@ import {
   Image,
   Pressable,
   FlatList,
+  Linking,
+  Platform,
   useWindowDimensions,
 } from "react-native";
 import Alert from "../util/dialog";
@@ -97,11 +99,33 @@ export default function FotoViewerScreen({ route, navigation }) {
         onMomentumScrollEnd={onScroll}
         renderItem={({ item }) => (
           <View style={{ width, height, justifyContent: "center" }}>
-            <Image
-              source={{ uri: item.url }}
-              style={{ width, height: height * 0.72 }}
-              resizeMode="contain"
-            />
+            {item.videoUrl && Platform.OS === "web" ? (
+              // Video: im Browser direkt abspielbar (Posterbild = erstes Bild).
+              React.createElement("video", {
+                src: item.videoUrl,
+                poster: item.url,
+                controls: true,
+                playsInline: true,
+                preload: "metadata",
+                style: { width, height: height * 0.72, backgroundColor: "#000" },
+              })
+            ) : (
+              <Pressable
+                disabled={!item.videoUrl}
+                onPress={() => Linking.openURL(item.videoUrl).catch(() => {})}
+              >
+                <Image
+                  source={{ uri: item.url }}
+                  style={{ width, height: height * 0.72 }}
+                  resizeMode="contain"
+                />
+                {item.videoUrl ? (
+                  <View style={styles.playUeberlagerung} pointerEvents="none">
+                    <Text style={styles.playText}>▶ Video abspielen</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            )}
           </View>
         )}
       />
@@ -162,6 +186,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingBottom: 12,
   },
+  playUeberlagerung: {
+    position: "absolute",
+    alignSelf: "center",
+    top: "42%",
+    backgroundColor: "rgba(0,0,0,0.65)",
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  playText: { ...schrift.headHalb, fontSize: 15, color: "#fff" },
   notiz: { ...schrift.body, fontSize: 15, color: farben.text, marginBottom: 4 },
   datum: { ...schrift.body, fontSize: 13, color: farben.textMatt },
   loeschen: { marginTop: 14, alignSelf: "flex-start" },

@@ -300,6 +300,11 @@ export default function FotosScreen({ route, navigation }) {
             {proPhase.map((f, i) => (
               <Pressable key={f.id} style={styles.zelle} onPress={() => oeffneViewer(i)}>
                 <Image source={{ uri: f.url }} style={styles.bild} />
+                {f.videoUrl ? (
+                  <View style={styles.videoMarke} pointerEvents="none">
+                    <Text style={styles.videoMarkeText}>▶ Video</Text>
+                  </View>
+                ) : null}
                 {f.notiz ? <Text style={styles.notiz} numberOfLines={2}>{f.notiz}</Text> : null}
                 <Text style={styles.datum}>
                   {datumDe(f.aufgenommenAm || f.erstelltAm)}
@@ -330,6 +335,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: farben.linie,
   },
+  videoMarke: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  videoMarkeText: { ...schrift.bodyMed, fontSize: 12, color: "#fff" },
   notiz: { ...schrift.body, fontSize: 13, color: farben.textMatt, marginTop: 6 },
   datum: { ...schrift.body, fontSize: 11, color: farben.textMatt, marginTop: 3 },
   wartenLeiste: {
