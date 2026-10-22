@@ -10,6 +10,7 @@ import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firesto
 import { db } from "../firebase";
 import { ladeDateiHoch } from "../cloudinary";
 import { aktualisiereZaehler } from "./baustelle";
+import { pruefeEinordnung, einordnungsFelder } from "./einordnung";
 import {
   passtNoch,
   eintragAnlegen,
@@ -44,6 +45,10 @@ export async function speichern(liste) {
 /** Legt ein Foto in die Warteschlange. Gibt { ok, grund, liste } zurück. */
 export async function einreihen(daten) {
   const liste = await laden();
+  // Letzte Absicherung: ohne Phase und Raum kommt nichts in die Schlange,
+  // auch wenn ein Bildschirm die Abfrage einmal vergisst.
+  const einordnung = pruefeEinordnung(daten);
+  if (!einordnung.ok) return { ok: false, grund: einordnung.grund, liste };
   const kennung = `${Date.now()}-${liste.length}-${(daten.base64 || "").length % 9973}`;
   const eintrag = eintragAnlegen(kennung, daten);
 
@@ -85,6 +90,7 @@ export async function abarbeiten(beiAenderung) {
         url,
         publicId,
         phase: eintrag.phase,
+        ...einordnungsFelder(eintrag),
         notiz: eintrag.notiz,
         hochgeladenVon: eintrag.hochgeladenVon,
         // Zwei verschiedene Zeitpunkte, mit Absicht getrennt.

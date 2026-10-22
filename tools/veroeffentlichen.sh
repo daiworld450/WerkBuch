@@ -34,6 +34,7 @@ rsync -a --delete \
   --exclude '.secrets/' \
   --exclude '.wrangler/' \
   --exclude '.lokal-test/' \
+  --exclude '.claude-flow/' \
   --exclude 'WerkBuch-Sicherungen/' \
   --exclude '*.log' \
   --exclude 'regeln-ergebnis.txt' \

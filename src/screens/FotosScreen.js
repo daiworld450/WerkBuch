@@ -39,6 +39,7 @@ import Leerzustand from "../components/Leerzustand";
 import Ladeanzeige from "../components/Ladeanzeige";
 import { PHASEN, aktualisiereZaehler } from "../util/baustelle";
 import { standText } from "../util/warteschlange";
+import { BEREICHE, bereichWert, pruefeEinordnung, heute } from "../util/einordnung";
 import { einreihen, abarbeiten, laden as warteschlangeLaden } from "../util/fotoVersand";
 import { datumDe } from "../util/format";
 import fehlerText from "../util/fehler";
@@ -52,6 +53,11 @@ export default function FotosScreen({ route, navigation }) {
   }, [baustelleId]);
   if (!baustelleId) return null;
   const [phase, setPhase] = useState(PHASEN[0]);
+  // Wohin das nächste Foto gehört. Mit Absicht ohne Vorauswahl: Wer Phase und
+  // Raum nicht wählt, kann nicht hochladen (einordnung.js erklärt warum).
+  const [zielPhase, setZielPhase] = useState(null);
+  const [zielBereich, setZielBereich] = useState(null);
+  const [andererRaum, setAndererRaum] = useState("");
   const [fotos, setFotos] = useState([]);
   const [notiz, setNotiz] = useState("");
   const [laedt, setLaedt] = useState(true);
@@ -104,7 +110,15 @@ export default function FotosScreen({ route, navigation }) {
     return fotos.filter((f) => f.phase === p).length;
   }
 
+  // Der Raum aus der Auswahl — oder, bei „Anderer“, aus dem Freitext.
+  const raum = zielBereich === "__anderer" ? bereichWert(andererRaum) : zielBereich;
+
   async function fotoWaehlen() {
+    const einordnung = pruefeEinordnung({ phase: zielPhase, bereich: raum });
+    if (!einordnung.ok) {
+      Alert.alert("Erst einordnen", einordnung.grund);
+      return;
+    }
     // Im Web direkt den Dateiwähler öffnen (iOS bietet dort selbst
     // "Fotoübersicht / Foto aufnehmen" an)
     if (Platform.OS === "web") {
@@ -197,10 +211,12 @@ export default function FotosScreen({ route, navigation }) {
         // nur EINEN Weg ins Netz — und der überlebt einen Funkloch-Moment.
         const erg = await einreihen({
           baustelleId,
-          phase,
+          phase: zielPhase,
+          bereich: raum,
+          eingeordnet: heute(),
           notiz: notiz.trim(),
           base64: bearbeitet.base64,
-          dateiname: `${baustelleId}_${phase}_${Date.now()}_${eingereiht}.jpg`,
+          dateiname: `${baustelleId}_${zielPhase}_${Date.now()}_${eingereiht}.jpg`,
           aufgenommenAm: genommenAm,
           hochgeladenVon: profil?.id || null,
         });
@@ -215,6 +231,14 @@ export default function FotosScreen({ route, navigation }) {
       }
 
       setNotiz("");
+      if (eingereiht > 0) {
+        // Die Fotos erscheinen in ihrer Phase; die Auswahl beginnt wieder leer,
+        // damit das nächste Foto nicht aus Gewohnheit im falschen Raum landet.
+        setPhase(zielPhase);
+        setZielPhase(null);
+        setZielBereich(null);
+        setAndererRaum("");
+      }
       // Und jetzt raus damit, soweit das Netz mitspielt.
       await abarbeiten(setWartend);
     } catch (e) {
@@ -267,8 +291,54 @@ export default function FotosScreen({ route, navigation }) {
         {/* Handwerker: Notiz + Hinzufügen */}
         {darfBearbeiten ? (
           <View style={styles.addBox}>
+            <Text style={styles.einordnungLabel}>Bauphase</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.einordnungReihe}
+            >
+              {PHASEN.map((p) => (
+                <Pill
+                  key={p}
+                  text={p}
+                  aktiv={zielPhase === p}
+                  onPress={() => setZielPhase(p)}
+                  style={{ marginRight: 8 }}
+                />
+              ))}
+            </ScrollView>
+            <Text style={styles.einordnungLabel}>Raum</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.einordnungReihe}
+            >
+              {BEREICHE.map((b) => (
+                <Pill
+                  key={b.wert}
+                  text={b.label}
+                  aktiv={zielBereich === b.wert}
+                  onPress={() => setZielBereich(b.wert)}
+                  style={{ marginRight: 8 }}
+                />
+              ))}
+              <Pill
+                text="Anderer …"
+                aktiv={zielBereich === "__anderer"}
+                onPress={() => setZielBereich("__anderer")}
+                style={{ marginRight: 8 }}
+              />
+            </ScrollView>
+            {zielBereich === "__anderer" ? (
+              <Feld
+                label="Welcher Raum?"
+                wert={andererRaum}
+                onChangeText={setAndererRaum}
+                platzhalter="z. B. Keller"
+              />
+            ) : null}
             <Feld
-              label={`Notiz für Phase „${phase}“ (optional)`}
+              label="Notiz (optional)"
               wert={notiz}
               onChangeText={setNotiz}
               platzhalter="z. B. Wandanschluss links"
@@ -279,8 +349,18 @@ export default function FotosScreen({ route, navigation }) {
                 <Text style={styles.uploadText}>Fotos werden übernommen …</Text>
               </View>
             ) : (
-              <Knopf titel="Fotos hinzufügen" onPress={fotoWaehlen} variante="sekundaer" />
+              <Knopf
+                titel="Fotos hinzufügen"
+                onPress={fotoWaehlen}
+                variante="sekundaer"
+                deaktiviert={!zielPhase || !raum}
+              />
             )}
+            {!hochladen && (!zielPhase || !raum) ? (
+              <Text style={styles.einordnungHinweis}>
+                Erst {!zielPhase && !raum ? "Bauphase und Raum" : !zielPhase ? "die Bauphase" : "den Raum"} wählen.
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -323,6 +403,9 @@ const styles = StyleSheet.create({
   chipLeiste: { paddingHorizontal: 16, paddingVertical: 12 },
   scroll: { paddingHorizontal: 16, paddingBottom: 40 },
   addBox: { marginBottom: 18 },
+  einordnungLabel: { ...schrift.headHalb, fontSize: 12, color: farben.textMatt, letterSpacing: 1, textTransform: "uppercase", marginTop: 4, marginBottom: 6 },
+  einordnungReihe: { paddingBottom: 12 },
+  einordnungHinweis: { ...schrift.body, fontSize: 12, color: farben.textMatt, marginTop: 8, textAlign: "center" },
   uploadReihe: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 14, justifyContent: "center" },
   uploadText: { ...schrift.body, fontSize: 14, color: farben.textWeich },
   raster: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },

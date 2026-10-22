@@ -64,6 +64,10 @@ export function eintragAnlegen(kennung, daten) {
     id: kennung,
     baustelleId: daten.baustelleId,
     phase: daten.phase,
+    // Raum und Datum der Einordnung (einordnung.js). Einträge aus der Zeit
+    // davor haben beides nicht und werden wie bisher ohne gesendet.
+    bereich: daten.bereich || null,
+    eingeordnet: daten.eingeordnet || null,
     notiz: daten.notiz || "",
     base64: daten.base64,
     dateiname: daten.dateiname,
