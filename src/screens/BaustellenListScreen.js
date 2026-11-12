@@ -16,7 +16,7 @@
 // passiert. Alle drei sind dem Inhaber vorbehalten.
 // ---------------------------------------------------------------------------
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ import Leerzustand from "../components/Leerzustand";
 import Ladeanzeige from "../components/Ladeanzeige";
 import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
+import { listenReihen } from "../util/baustellenListe";
 import { VERSION } from "../version";
 
 export default function BaustellenListScreen({ navigation }) {
@@ -60,14 +61,9 @@ export default function BaustellenListScreen({ navigation }) {
     const stop = onSnapshot(
       q,
       (snap) => {
-        const liste = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        // Nach Erstelldatum absteigend sortieren (clientseitig, kein Index nötig)
-        liste.sort((a, b) => {
-          const ta = a.erstelltAm?.seconds || 0;
-          const tb = b.erstelltAm?.seconds || 0;
-          return tb - ta;
-        });
-        setBaustellen(liste);
+        // Geordnet wird erst in listenReihen (nach Feld reihenfolge, clientseitig,
+        // kein Index nötig).
+        setBaustellen(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setLaedt(false);
         setFehler("");
       },
@@ -117,7 +113,16 @@ export default function BaustellenListScreen({ navigation }) {
     );
   }
 
-  function karte({ item }) {
+  const reihen = useMemo(() => listenReihen(baustellen), [baustellen]);
+
+  function zeile({ item: reihe }) {
+    if (reihe.typ === "monat") {
+      return <Text style={styles.monat}>{reihe.titel}</Text>;
+    }
+    return karte(reihe.baustelle);
+  }
+
+  function karte(item) {
     return (
       <Karte
         onPress={() =>
@@ -148,9 +153,9 @@ export default function BaustellenListScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <FlatList
-        data={baustellen}
+        data={reihen}
         keyExtractor={(i) => i.id}
-        renderItem={karte}
+        renderItem={zeile}
         ListHeaderComponent={
           <>
             {kopf()}
@@ -247,6 +252,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: farben.textMatt,
     marginTop: 3,
+  },
+  monat: {
+    ...schrift.headHalb,
+    fontSize: groessen.klein,
+    color: farben.textWeich,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginTop: 8,
+    marginBottom: 12,
   },
   bStatusReihe: {
     flexDirection: "row",
