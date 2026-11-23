@@ -1,8 +1,8 @@
 // Automatisch erzeugt von tools/version-schreiben.js — nicht von Hand ändern.
 export const VERSION = {
-  stand: "22.10.2026 15:54",
-  kennung: "9445eb1",
-  gebautAm: "2026-10-22T13:54:13.920Z",
+  stand: "23.11.2026 18:25",
+  kennung: "d8e3f49c",
+  gebautAm: "2026-11-23T17:25:22.768Z",
 };
 
 export default VERSION;

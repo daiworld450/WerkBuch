@@ -8,7 +8,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { farben, schrift } from "../theme";
 
 // Ordnet jedem Baustellen-Status eine Farbe zu
-function statusFarbe(status) {
+export function statusFarbe(status) {
   if (status === "Abgeschlossen") return farben.gruen;
   if (status === "In Ausführung") return farben.blauHell;
   return farben.textMatt; // In Planung / sonstiges

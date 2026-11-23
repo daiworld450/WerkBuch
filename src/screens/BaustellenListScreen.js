@@ -31,11 +31,9 @@ import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import { farben, schrift, groessen, textStil } from "../theme";
-import Karte from "../components/Karte";
 import Knopf from "../components/Knopf";
-import Pill from "../components/Pill";
 import Fortschritt from "../components/Fortschritt";
-import Statuspunkt from "../components/Statuspunkt";
+import { statusFarbe } from "../components/Statuspunkt";
 import Leerzustand from "../components/Leerzustand";
 import Ladeanzeige from "../components/Ladeanzeige";
 import Fehlerkasten from "../components/Fehlerkasten";
@@ -81,10 +79,10 @@ export default function BaustellenListScreen({ navigation }) {
         <View style={styles.kopf}>
           <View style={{ flex: 1 }}>
             <Text style={styles.hallo}>Hallo {profil?.name || ""}</Text>
-            <Pill
-              text={istMitarbeiter ? "Mitarbeiter" : "Handwerker"}
-              style={{ marginTop: 8 }}
-            />
+            <Text style={styles.untertitel}>
+              {istMitarbeiter ? "Mitarbeiter" : "Handwerker"}
+              {baustellen.length ? `  ·  ${baustellen.length} Baustellen` : ""}
+            </Text>
           </View>
           <Pressable onPress={abmelden} hitSlop={10}>
             <Text style={styles.abmelden}>Abmelden</Text>
@@ -122,29 +120,49 @@ export default function BaustellenListScreen({ navigation }) {
     return karte(reihe.baustelle);
   }
 
+  // Kompakte Zeile statt großer Karte: Name + Status oben, darunter
+  // Auftragsnummer, Ort und Fotos in einer Zeile; Fortschritt nur, wenn es einen gibt.
+  // Die Auftragsnummer hält gleichnamige Baustellen (z. B. drei Aufträge für
+  // denselben Kunden) auseinander.
   function karte(item) {
+    const prozent = Math.round(item.fortschritt || 0);
+    const fotos = item.fotoAnzahl || 0;
+    const farbe = statusFarbe(item.status);
+    const meta = [item.adresse, fotos ? `${fotos} Fotos` : ""].filter(Boolean).join("  ·  ");
     return (
-      <Karte
+      <Pressable
         onPress={() =>
           navigation.navigate("BaustelleDetail", { baustelleId: item.id })
         }
-        style={{ marginBottom: 14 }}
+        style={({ pressed }) => [styles.zeile, pressed && { opacity: 0.8 }]}
       >
-        <Text style={styles.bName}>{item.name}</Text>
-        {item.adresse ? (
-          <Text style={styles.bAdresse}>{item.adresse}</Text>
+        <View style={styles.zeileOben}>
+          <View style={[styles.punkt, { backgroundColor: farbe }]} />
+          <Text style={styles.bName} numberOfLines={1}>
+            {item.name}
+          </Text>
+          <Text style={[styles.bStatus, { color: farbe }]} numberOfLines={1}>
+            {item.status || ""}
+          </Text>
+        </View>
+        {item.angebotsNummer || meta || prozent > 0 ? (
+          <View style={styles.zeileMitte}>
+            <Text style={styles.bMeta} numberOfLines={1}>
+              {item.angebotsNummer ? (
+                <Text style={styles.bNummer}>
+                  {item.angebotsNummer}
+                  {meta ? "  ·  " : ""}
+                </Text>
+              ) : null}
+              {meta}
+            </Text>
+            {prozent > 0 ? <Text style={styles.bProzent}>{prozent} %</Text> : null}
+          </View>
         ) : null}
-
-        <View style={styles.bStatusReihe}>
-          <Statuspunkt status={item.status} />
-          <Text style={styles.bFotos}>{item.fotoAnzahl || 0} Fotos</Text>
-        </View>
-
-        <View style={styles.bFortschritt}>
-          <Fortschritt prozent={item.fortschritt || 0} style={{ flex: 1 }} />
-          <Text style={styles.bProzent}>{Math.round(item.fortschritt || 0)} %</Text>
-        </View>
-      </Karte>
+        {prozent > 0 ? (
+          <Fortschritt prozent={prozent} style={styles.bBalken} />
+        ) : null}
+      </Pressable>
     );
   }
 
@@ -216,8 +234,15 @@ export default function BaustellenListScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: farben.bg },
-  liste: { padding: 20, paddingBottom: 40 },
-  kopfBereich: { marginBottom: 20 },
+  // Auf großen Bildschirmen nicht über die ganze Breite ziehen.
+  liste: {
+    padding: 16,
+    paddingBottom: 32,
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+  },
+  kopfBereich: { marginBottom: 12 },
   kopf: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -225,68 +250,76 @@ const styles = StyleSheet.create({
   linkReihe: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 18,
-    marginTop: 16,
+    gap: 16,
+    marginTop: 10,
   },
-  link: { ...schrift.bodyMed, fontSize: 14, color: farben.textWeich },
+  link: { ...schrift.bodyMed, fontSize: 13, color: farben.textWeich },
   hallo: {
     ...schrift.head,
-    fontSize: groessen.h1,
+    fontSize: 24,
     color: farben.text,
     letterSpacing: 0.5,
+  },
+  untertitel: {
+    ...schrift.body,
+    fontSize: 12,
+    color: farben.textMatt,
+    marginTop: 2,
   },
   abmelden: {
     ...schrift.bodyMed,
-    fontSize: 14,
+    fontSize: 13,
     color: farben.textMatt,
-    paddingTop: 6,
+    paddingTop: 4,
   },
+  zeile: {
+    backgroundColor: farben.glas,
+    borderWidth: 1,
+    borderColor: farben.linie,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  zeileOben: { flexDirection: "row", alignItems: "center", gap: 8 },
+  punkt: { width: 8, height: 8, borderRadius: 4 },
   bName: {
     ...schrift.head,
-    fontSize: groessen.h3,
+    flex: 1,
+    fontSize: 17,
     color: farben.text,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
-  bAdresse: {
-    ...schrift.body,
-    fontSize: 14,
-    color: farben.textMatt,
+  bStatus: { ...schrift.body, fontSize: 11 },
+  zeileMitte: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     marginTop: 3,
+    paddingLeft: 16,
   },
+  bMeta: { ...schrift.body, flex: 1, fontSize: 12, color: farben.textMatt },
+  bNummer: { ...schrift.bodyMed, color: farben.textWeich },
+  bProzent: { ...schrift.headHalb, fontSize: 13, color: farben.text },
+  bBalken: { height: 3, marginTop: 7, marginLeft: 16 },
   monat: {
     ...schrift.headHalb,
     fontSize: groessen.klein,
     color: farben.textWeich,
     letterSpacing: 0.5,
     textTransform: "uppercase",
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  bStatusReihe: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 14,
-  },
-  bFotos: { ...schrift.body, fontSize: 13, color: farben.textMatt },
-  bFortschritt: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14 },
-  bProzent: {
-    ...schrift.head,
-    fontSize: 16,
-    color: farben.text,
-    letterSpacing: 0.5,
-    minWidth: 46,
-    textAlign: "right",
+    marginTop: 12,
+    marginBottom: 8,
   },
   stand: {
     ...schrift.body,
     fontSize: 11,
     color: farben.textMatt,
     textAlign: "center",
-    marginTop: 26,
+    marginTop: 18,
   },
   fussLeiste: {
-    padding: 16,
+    padding: 12,
     borderTopWidth: 1,
     borderTopColor: farben.linie,
     backgroundColor: farben.bg,
