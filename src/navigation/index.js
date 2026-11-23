@@ -113,7 +113,8 @@ export default function Navigation() {
             <Stack.Screen
               name="Baustellen"
               component={BaustellenListScreen}
-              options={{ title: "Meine Baustellen" }}
+              // Die Liste hat ihren eigenen Kopf ("Hallo …") in der Spalte.
+              options={{ title: "Meine Baustellen", headerShown: false }}
             />
             <Stack.Screen
               name="NeueBaustelle"
