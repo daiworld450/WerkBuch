@@ -55,6 +55,7 @@ import Leerzustand from "../components/Leerzustand";
 import fehlerText from "../util/fehler";
 import { datumDe, datumIso, zuDate, euroDe } from "../util/format";
 import { kalkuliere } from "../util/kalkulation";
+import { zahlenRef } from "../util/zahlen";
 
 const STATUS = ["In Planung", "In Ausführung", "Abgeschlossen"];
 
@@ -79,9 +80,9 @@ const webDatumStil = {
 
 // nurInhaber: true = Kachel erscheint für den Mitarbeiter gar nicht.
 const EINSTIEGE = [
-  { key: "Fotos", symbol: "📷", titel: "Fotos", text: "Bilder nach Bauphase sortiert" },
+  { key: "Fotos", symbol: "📷", titel: "Fotos", text: "Bilder nach Bauphase sortiert", nurInhaber: true },
   { key: "Visualisierung", symbol: "🎨", titel: "Entwurf", text: "Foto aufnehmen, fertiges Bad zeigen", nurInhaber: true },
-  { key: "Masse", symbol: "📐", titel: "Maße & Flächen", text: "Raummaße und automatische Flächenberechnung" },
+  { key: "Masse", symbol: "📐", titel: "Maße & Flächen", text: "Raummaße und automatische Flächenberechnung", nurInhaber: true },
   { key: "Material", symbol: "🧱", titel: "Material", text: "Fliesen, Boden, Sanitär", nurInhaber: true },
   { key: "Stunden", symbol: "⏱", titel: "Stunden", text: "Wer wann wie lange gearbeitet hat" },
   { key: "Kosten", symbol: "🧾", titel: "Kosten", text: "Fahrt, Werkzeug, Fremdleistung", nurInhaber: true },
@@ -128,6 +129,7 @@ export default function BaustelleDetailScreen({ route, navigation }) {
   const [stundenListe, setStundenListe] = useState([]);
   const [materialListe, setMaterialListe] = useState([]);
   const [kostenListe, setKostenListe] = useState([]);
+  const [zahlenDoc, setZahlenDoc] = useState(null); // Umsatz/Budget, siehe util/zahlen.js
 
   // Personen mit verknüpftem Konto — nur die lassen sich zuweisen.
   const [personen, setPersonen] = useState([]);
@@ -184,6 +186,11 @@ export default function BaustelleDetailScreen({ route, navigation }) {
         collection(db, "baustellen", baustelleId, "kosten"),
         (s) => setKostenListe(s.docs.map((d) => d.data())),
         () => setKostenListe([])
+      ),
+      onSnapshot(
+        zahlenRef(baustelleId),
+        (s) => setZahlenDoc(s.exists() ? s.data() : {}),
+        () => setZahlenDoc({})
       ),
     ];
     return () => stops.forEach((s) => s());
@@ -375,8 +382,8 @@ export default function BaustelleDetailScreen({ route, navigation }) {
 
   const erg = istHandwerker
     ? kalkuliere({
-        umsatz: baustelle.umsatz,
-        budget: baustelle.budget,
+        umsatz: zahlenDoc?.umsatz,
+        budget: zahlenDoc?.budget,
         stunden: stundenListe,
         material: materialListe,
         kosten: kostenListe,

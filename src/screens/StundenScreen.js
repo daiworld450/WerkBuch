@@ -166,8 +166,18 @@ export default function StundenScreen({ route, navigation }) {
 
   // -------------------------------------------------------------- Stunden
   useEffect(() => {
+    // Der Mitarbeiter fragt ausdrücklich nur nach den eigenen Einträgen: die
+    // Regel in firestore.rules lässt ihm genau diese Abfrage zu, die ganze
+    // Sammlung wäre abgelehnt.
+    if (istMitarbeiter && !profil?.id) return;
+    const stundenQuelle = istMitarbeiter
+      ? query(
+          collection(db, "baustellen", baustelleId, "stunden"),
+          where("erstelltVon", "==", profil.id)
+        )
+      : collection(db, "baustellen", baustelleId, "stunden");
     const stop = onSnapshot(
-      collection(db, "baustellen", baustelleId, "stunden"),
+      stundenQuelle,
       (snap) => {
         let l = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         // Der Mitarbeiter sieht nur seine eigenen Einträge.

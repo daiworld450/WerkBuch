@@ -24,6 +24,7 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
 } from "firebase/firestore";
 
 import { db } from "../firebase";
@@ -38,6 +39,7 @@ import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
 import { euroDe, mengeDe, zuDate } from "../util/format";
 import { kalkuliere, ortAus, summiereBaustellen } from "../util/kalkulation";
+import { zahlenRef } from "../util/zahlen";
 
 const SORTIERUNGEN = [
   { key: "gewinn", label: "Gewinn" },
@@ -97,18 +99,20 @@ export default function AuswertungScreen({ navigation }) {
       let fertig = 0;
       const ergebnisse = await Promise.all(
         baustellen.map(async (b) => {
-          const [stunden, material, kosten] = await Promise.all([
+          const [stunden, material, kosten, zahlenSnap] = await Promise.all([
             getDocs(collection(db, "baustellen", b.id, "stunden")),
             getDocs(collection(db, "baustellen", b.id, "material")),
             getDocs(collection(db, "baustellen", b.id, "kosten")),
+            getDoc(zahlenRef(b.id)),
           ]);
+          const zahlen = zahlenSnap.exists() ? zahlenSnap.data() : {};
           fertig += 1;
           setFortschritt({ fertig, gesamt: baustellen.length });
           return {
             baustelle: b,
             erg: kalkuliere({
-              umsatz: b.umsatz,
-              budget: b.budget,
+              umsatz: zahlen.umsatz,
+              budget: zahlen.budget,
               stunden: stunden.docs.map((d) => d.data()),
               material: material.docs.map((d) => d.data()),
               kosten: kosten.docs.map((d) => d.data()),

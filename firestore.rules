@@ -43,7 +43,7 @@ service cloud.firestore {
     function eigeneRegeln() {
       return ['angebot', 'freigaben', 'protokoll', 'guthaben',
               'zulagenBestellungen', 'nachrichten', 'dokumente',
-              'material', 'kosten', 'stunden', 'nachtraege'];
+              'material', 'kosten', 'stunden', 'nachtraege', 'zahlen'];
     }
 
     function istHandwerker() {
@@ -75,8 +75,11 @@ service cloud.firestore {
 
     // -------------------------------------------------------------- users
     match /users/{uid} {
-      // Angemeldete dürfen Profile lesen (nötig, um Kunden per E-Mail zu finden)
-      allow read: if angemeldet();
+      // Nur das eigene Profil. Früher durfte jeder Angemeldete alle lesen (nötig,
+      // um Kunden per E-Mail zu finden); Kunden-Konten gibt es nicht mehr. Im
+      // Profil des Inhabers steht stundensatzKostenStandard, das ein Mitarbeiter
+      // nicht sehen soll.
+      allow read: if angemeldet() && uid == meineUid();
       allow create: if angemeldet() && uid == meineUid();
       // "rolle" ist nach dem Anlegen unveränderlich — sonst könnte sich ein
       // bereits bestehendes Konto nachträglich selbst zum Handwerker machen.
@@ -115,9 +118,12 @@ service cloud.firestore {
     }
 
     // --------------------------------------------------------- baustellen
-    // Enthält u.a. geplantStart/geplantEnde (Einsatzplanung/Kalenderübersicht),
-    // umsatz/budget (Grundlage der Nachkalkulation) und zugewieseneNutzer:
-    // die Liste der Mitarbeiter-uids, die diese Baustelle sehen dürfen.
+    // Enthält u.a. geplantStart/geplantEnde (Einsatzplanung/Kalenderübersicht)
+    // und zugewieseneNutzer: die Liste der Mitarbeiter-uids, die diese Baustelle
+    // sehen dürfen. Umsatz und Budget stehen seit 27.11.2026 NICHT mehr hier,
+    // sondern in baustellen/{id}/zahlen/aktuell (nur Inhaber): Firestore kann
+    // einzelne Felder nicht verbergen, und das Hauptdokument liest auch der
+    // zugewiesene Mitarbeiter.
     // Beschrieben wird sie im Abschnitt "Wer arbeitet hier" des
     // Baustellen-Bildschirms und fällt unter die update-Regel unten — nur
     // der Handwerker selbst darf sie ändern.
@@ -157,6 +163,11 @@ service cloud.firestore {
         allow read, write: if angemeldet() && istHandwerkerVon(bid);
       }
 
+      // Umsatz und Budget der Baustelle (Dokument "aktuell"). Nur Inhaber.
+      match /zahlen/{docId} {
+        allow read, write: if angemeldet() && istHandwerkerVon(bid);
+      }
+
       // ------------------------------------------------ Nachkalkulation
       // Material enthält Einkaufspreise. Bis zur Mitarbeiter-Stufe lief es
       // über die Sammelregel ganz unten — die gibt einem zugewiesenen
@@ -187,8 +198,13 @@ service cloud.firestore {
       // die Kalkulation ohnehin über die Stundenzahl beeinflussen. Die
       // Kontrolle darüber liegt beim Inhaber, der jeden Eintrag sieht.
       match /stunden/{stundenId} {
-        allow read: if angemeldet() &&
-          (istHandwerkerVon(bid) || istZugewiesen(bid));
+        // Der Mitarbeiter liest nur seine EIGENEN Einträge (und fragt auch nur
+        // danach: where erstelltVon == uid). Fremde Stunden samt Stundensatz
+        // der Kollegen bleiben ihm verborgen.
+        allow read: if angemeldet() && (
+          istHandwerkerVon(bid) ||
+          (istZugewiesen(bid) && resource.data.erstelltVon == meineUid())
+        );
         allow create: if angemeldet() && (
           istHandwerkerVon(bid) ||
           (istZugewiesen(bid) && request.resource.data.erstelltVon == meineUid())
@@ -260,12 +276,10 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Alle übrigen Unterordner (fotos, masse, raum):
-      // lesen und schreiben für Handwerker und zugewiesene Mitarbeiter.
-      //
-      // Der Mitarbeiter soll Fotos hochladen und Maße erfassen können — das
-      // ist genau der Zweck seines Zugangs. Material, kosten und stunden
-      // fallen NICHT mehr hierunter, sie stehen oben in eigeneRegeln().
+      // Alle übrigen Unterordner (fotos, masse, raum, visualisierungen):
+      // lesen und schreiben nur der Inhaber. Bis 27.11.2026 durfte auch der
+      // zugewiesene Mitarbeiter hier Fotos und Maße pflegen; seitdem trägt er
+      // nur noch seine eigenen Stunden ein (Regel oben bei "stunden").
       //
       // ACHTUNG: Firestore verknüpft alle passenden Regeln mit ODER. Diese
       // Sammelregel greift deshalb AUCH auf die oben genannten Sammlungen —
@@ -277,11 +291,8 @@ service cloud.firestore {
       // Wer später eine weitere geschützte Sammlung ergänzt, muss sie AUCH
       // hier eintragen — sonst greift wieder diese weite Regel.
       match /{unterordner}/{docId} {
-        allow read: if angemeldet() &&
-          (istHandwerkerVon(bid) || istZugewiesen(bid)) &&
-          !(unterordner in eigeneRegeln());
-        allow write: if angemeldet() &&
-          (istHandwerkerVon(bid) || istZugewiesen(bid)) &&
+        allow read, write: if angemeldet() &&
+          istHandwerkerVon(bid) &&
           !(unterordner in eigeneRegeln());
       }
     }
@@ -291,19 +302,21 @@ service cloud.firestore {
     // Stundensatz. Top-level, weil die Personen baustellenübergreifend
     // gelten und die Registrierung sie ohne Baustellenbezug finden muss.
     //
-    // read für jeden Angemeldeten: Bei der Registrierung muss das frisch
-    // angelegte Konto prüfen können, ob der Inhaber für seine E-Mail einen
-    // Personen-Eintrag hinterlegt hat — erst daraus entsteht die Rolle
-    // "mitarbeiter". Zu diesem Zeitpunkt gibt es noch kein users-Dokument,
-    // an dem sich etwas Engeres festmachen ließe.
+    // Die Registrierung muss die Person zur eigenen E-Mail finden können, um
+    // daraus die Rolle "mitarbeiter" abzuleiten (zu diesem Zeitpunkt gibt es
+    // noch kein users-Dokument). Die Sammlung enthält nur Name, Stundensatz,
+    // E-Mail und uid — keine Bankdaten, keine Adressen.
     //
-    // Die Sammlung enthält deshalb bewusst NUR Name, Stundensatz, E-Mail und
-    // uid — keine Bankdaten, keine Adressen. Wer sie liest, erfährt, wer im
-    // Betrieb arbeitet und was die Stunde kostet. Das ist der Preis dafür,
-    // dass die Konto-Verknüpfung ohne Mailserver und ohne Cloud Function
-    // auskommt.
+    // Gelesen werden darf (seit 27.11.2026) nur: eine Person des eigenen
+    // Betriebs (Inhaber), die eigene Person (uid) und die Person zur eigenen
+    // E-Mail (Registrierung). Vorher las jeder Angemeldete alle Personen samt
+    // Stundensatz.
     match /personen/{personId} {
-      allow read: if angemeldet();
+      allow read: if angemeldet() && (
+        resource.data.handwerkerId == meineUid() ||
+        resource.data.get('uid', null) == meineUid() ||
+        resource.data.email == request.auth.token.email
+      );
       allow create: if angemeldet() &&
         request.resource.data.handwerkerId == meineUid();
       allow delete: if angemeldet() && resource.data.handwerkerId == meineUid();

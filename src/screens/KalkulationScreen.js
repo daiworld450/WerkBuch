@@ -23,7 +23,7 @@ import {
 } from "react-native";
 import Alert from "../util/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
@@ -37,6 +37,7 @@ import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
 import { euroDe, mengeDe } from "../util/format";
 import { kalkuliere, budgetAmpel, zahlOderNull } from "../util/kalkulation";
+import { zahlenRef, zahlenSetzen } from "../util/zahlen";
 import { summe as nachtragSumme, euroAusCent } from "../util/nachtrag";
 
 const AMPEL_FARBE = {
@@ -72,6 +73,7 @@ export default function KalkulationScreen({ route, navigation }) {
   if (!baustelleId) return null;
 
   const [baustelle, setBaustelle] = useState(null);
+  const [zahlen, setZahlen] = useState(null); // baustellen/{id}/zahlen/aktuell
   const [stunden, setStunden] = useState([]);
   const [material, setMaterial] = useState([]);
   const [kosten, setKosten] = useState([]);
@@ -92,21 +94,7 @@ export default function KalkulationScreen({ route, navigation }) {
     const stop = onSnapshot(
       doc(db, "baustellen", baustelleId),
       (snap) => {
-        const daten = snap.exists() ? { id: snap.id, ...snap.data() } : null;
-        setBaustelle(daten);
-        // Eingabefelder nur einmal übernehmen, damit ein Live-Update keine
-        // laufende Eingabe überschreibt (gleiches Muster wie im Detail-Screen).
-        setUebernommen((schon) => {
-          if (!schon && daten) {
-            setUmsatz(
-              daten.umsatz != null ? String(daten.umsatz).replace(".", ",") : ""
-            );
-            setBudget(
-              daten.budget != null ? String(daten.budget).replace(".", ",") : ""
-            );
-          }
-          return true;
-        });
+        setBaustelle(snap.exists() ? { id: snap.id, ...snap.data() } : null);
         setLaedt(false);
       },
       (e) => {
@@ -114,7 +102,28 @@ export default function KalkulationScreen({ route, navigation }) {
         setLaedt(false);
       }
     );
-    return stop;
+    // Umsatz und Budget stehen in einem eigenen Dokument (nur Inhaber), siehe util/zahlen.js.
+    const stopZahlen = onSnapshot(
+      zahlenRef(baustelleId),
+      (snap) => {
+        const z = snap.exists() ? snap.data() : {};
+        setZahlen(z);
+        // Eingabefelder nur einmal übernehmen, damit ein Live-Update keine
+        // laufende Eingabe überschreibt (gleiches Muster wie im Detail-Screen).
+        setUebernommen((schon) => {
+          if (!schon) {
+            setUmsatz(z.umsatz != null ? String(z.umsatz).replace(".", ",") : "");
+            setBudget(z.budget != null ? String(z.budget).replace(".", ",") : "");
+          }
+          return true;
+        });
+      },
+      (e) => setFehler(fehlerText(e))
+    );
+    return () => {
+      stop();
+      stopZahlen();
+    };
   }, [baustelleId, istHandwerker]);
 
   useEffect(() => {
@@ -147,7 +156,7 @@ export default function KalkulationScreen({ route, navigation }) {
   async function zahlenSpeichern() {
     setSpeichert(true);
     try {
-      await updateDoc(doc(db, "baustellen", baustelleId), {
+      await zahlenSetzen(baustelleId, {
         umsatz: zahlOderNull(umsatz),
         budget: zahlOderNull(budget),
       });
@@ -181,8 +190,8 @@ export default function KalkulationScreen({ route, navigation }) {
   const erg = kalkuliere({ umsatz, budget, stunden, material, kosten });
   const ampel = budgetAmpel(erg.budgetAusnutzung);
   const ungespeichert =
-    zahlOderNull(umsatz) !== (baustelle?.umsatz ?? null) ||
-    zahlOderNull(budget) !== (baustelle?.budget ?? null);
+    zahlOderNull(umsatz) !== (zahlen?.umsatz ?? null) ||
+    zahlOderNull(budget) !== (zahlen?.budget ?? null);
 
   const gewinnFarbe =
     erg.gewinn == null
