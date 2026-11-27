@@ -3,7 +3,7 @@
 // Berechnet Fotoanzahl und Fortschritt neu und schreibt sie ins Hauptdokument.
 // ---------------------------------------------------------------------------
 
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, getDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 // Die sechs Bauphasen bestimmen den Fortschritt:
@@ -17,9 +17,19 @@ export const PHASEN = [
   "Fertig",
 ];
 
+// Eine abgeschlossene Baustelle steht immer bei 100 %. Die sechs Foto-Phasen
+// zeigen nur, wie vollständig die Fotos sind, nicht den Stand der Arbeit: ein
+// fertiger Auftrag mit Fotos aus nur zwei Phasen stand sonst bei 33 %.
+export function anzeigeFortschritt(baustelle) {
+  if (baustelle?.status === "Abgeschlossen") return 100;
+  return Math.round(baustelle?.fortschritt || 0);
+}
+
 // Liest alle Fotos, zählt sie und leitet den Fortschritt ab (0–100).
+// Abgeschlossen: immer 100, egal welche Phasen Fotos haben.
 export async function aktualisiereZaehler(baustelleId) {
   try {
+    const baustelleDoc = await getDoc(doc(db, "baustellen", baustelleId));
     const snap = await getDocs(
       collection(db, "baustellen", baustelleId, "fotos")
     );
@@ -29,7 +39,10 @@ export async function aktualisiereZaehler(baustelleId) {
       const p = d.data().phase;
       if (p) phasenMitFoto.add(p);
     });
-    const fortschritt = Math.round((phasenMitFoto.size / PHASEN.length) * 100);
+    const fortschritt =
+      baustelleDoc.data()?.status === "Abgeschlossen"
+        ? 100
+        : Math.round((phasenMitFoto.size / PHASEN.length) * 100);
     await updateDoc(doc(db, "baustellen", baustelleId), {
       fotoAnzahl,
       fortschritt,
@@ -39,4 +52,4 @@ export async function aktualisiereZaehler(baustelleId) {
   }
 }
 
-export default { PHASEN, aktualisiereZaehler };
+export default { PHASEN, aktualisiereZaehler, anzeigeFortschritt };

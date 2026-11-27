@@ -40,6 +40,7 @@ import Ladeanzeige from "../components/Ladeanzeige";
 import Fehlerkasten from "../components/Fehlerkasten";
 import fehlerText from "../util/fehler";
 import { listenReihen } from "../util/baustellenListe";
+import { anzeigeFortschritt } from "../util/baustelle";
 import { VERSION } from "../version";
 
 export default function BaustellenListScreen({ navigation }) {
@@ -153,7 +154,7 @@ export default function BaustellenListScreen({ navigation }) {
   // Die Auftragsnummer hält gleichnamige Baustellen (z. B. drei Aufträge für
   // denselben Kunden) auseinander.
   function karte(item) {
-    const prozent = Math.round(item.fortschritt || 0);
+    const prozent = anzeigeFortschritt(item);
     const fotos = item.fotoAnzahl || 0;
     const farbe = statusFarbe(item.status);
     const oeffnen = () =>

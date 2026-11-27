@@ -12,12 +12,14 @@ ist. Alles Geprüfte ist als geprüft gekennzeichnet, alles Ungeprüfte auch.
 
 | Datenart | Wo | Wer sieht sie |
 |---|---|---|
-| Konto (Name, E-Mail, Telefon, Rolle) | Firebase Authentication + Firestore `users` | Inhaber; ein Mitarbeiter sieht die Namen der Kollegen |
+| Konto (Name, E-Mail, Telefon, Rolle) | Firebase Authentication + Firestore `users` | jeder nur das eigene Profil (seit 27.11.2026) |
 | Baustelle (Bezeichnung, Adresse, Status, Zeitraum) | Firestore `baustellen` | Inhaber, zugewiesene Mitarbeiter |
 | **Kundenkontakt** (Name, Telefonnummer) | Firestore `baustellen` | Inhaber, zugewiesene Mitarbeiter |
-| Baustellenfotos | Cloudinary (Datei), Firestore (Adresse, Phase, Notiz, Datum) | Inhaber, zugewiesene Mitarbeiter |
-| Maße, Material, Kosten, Stunden | Firestore, je Baustelle | Preise und Kosten: **nur Inhaber** |
-| Personen mit internem Stundensatz | Firestore `personen` | jeder Angemeldete (siehe 4.2) |
+| Baustellenfotos | Cloudinary (Datei), Firestore (Adresse, Phase, Notiz, Datum) | nur Inhaber (Mitarbeiter seit 27.11.2026 nicht mehr) |
+| Maße, Material, Kosten | Firestore, je Baustelle | nur Inhaber |
+| Stunden | Firestore, je Baustelle | Inhaber alle; ein Mitarbeiter nur seine eigenen (seit 27.11.2026) |
+| Umsatz und Budget | Firestore `baustellen/{id}/zahlen/aktuell` | nur Inhaber |
+| Personen mit internem Stundensatz | Firestore `personen` | Inhaber; ein Mitarbeiter nur die eigene Person (seit 27.11.2026) |
 | Angebote (Positionen, Beträge) | Firestore, je Baustelle | nur Inhaber |
 | Nachträge | Firestore, je Baustelle | nur Inhaber |
 | **Freigabe durch den Kunden** | Firestore `freigabeLinks`, `freigabeEntscheidungen` | wer den Link hat (siehe 3) |
@@ -163,8 +165,11 @@ Problemliste.
 - **Standortdaten in Fotos werden entfernt.** Das Verkleinern streift alle
   Metadaten ab; das Aufnahmedatum wird vorher ausgelesen und getrennt
   gespeichert. Ein Kundenfoto trägt damit keine Koordinaten mit sich.
-- **Preise und Kosten sind vor Mitarbeitern verborgen** — durchgesetzt in den
-  Sicherheitsregeln, nicht nur in der Oberfläche.
+- **Preise, Kosten, Umsatz, Budget, Stundensätze und fremde Stunden sind vor
+  Mitarbeitern verborgen** — durchgesetzt in den Sicherheitsregeln, nicht nur in
+  der Oberfläche. Ein Mitarbeiter trägt nur seine eigenen Stunden ein (seit
+  27.11.2026). Offen: den eigenen internen Stundensatz kann er in seiner
+  Person und seinen Einträgen lesen.
 - **Der Kunde bekommt keinen Zugriff auf die Baustelle**, nur auf eine
   eingefrorene Kopie des einen Vorgangs.
 - **Nachweise sind unveränderlich**, auch für den Betrieb.

@@ -56,6 +56,7 @@ import fehlerText from "../util/fehler";
 import { datumDe, datumIso, zuDate, euroDe } from "../util/format";
 import { kalkuliere } from "../util/kalkulation";
 import { zahlenRef } from "../util/zahlen";
+import { anzeigeFortschritt, aktualisiereZaehler } from "../util/baustelle";
 
 const STATUS = ["In Planung", "In Ausführung", "Abgeschlossen"];
 
@@ -255,7 +256,16 @@ export default function BaustelleDetailScreen({ route, navigation }) {
 
   async function statusSetzen(neu) {
     try {
-      await updateDoc(doc(db, "baustellen", baustelleId), { status: neu });
+      const felder = { status: neu };
+      // Abgeschlossen = 100 %, mit Abschlussdatum (die Liste ordnet danach).
+      if (neu === "Abgeschlossen") {
+        felder.fortschritt = 100;
+        if (!baustelle?.abschlussAm) felder.abschlussAm = datumIso(new Date());
+      }
+      const warFertig = baustelle?.status === "Abgeschlossen";
+      await updateDoc(doc(db, "baustellen", baustelleId), felder);
+      // Wieder geöffnet: Fortschritt neu aus den Foto-Phasen rechnen.
+      if (warFertig && neu !== "Abgeschlossen") aktualisiereZaehler(baustelleId);
     } catch (e) {
       Alert.alert("Fehler", fehlerText(e));
     }
@@ -420,9 +430,9 @@ export default function BaustelleDetailScreen({ route, navigation }) {
         </View>
 
         <View style={styles.fortReihe}>
-          <Fortschritt prozent={baustelle.fortschritt || 0} style={{ flex: 1 }} />
+          <Fortschritt prozent={anzeigeFortschritt(baustelle)} style={{ flex: 1 }} />
           <Text style={styles.prozent}>
-            {Math.round(baustelle.fortschritt || 0)} %
+            {anzeigeFortschritt(baustelle)} %
           </Text>
         </View>
 
